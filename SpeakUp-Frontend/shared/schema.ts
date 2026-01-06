@@ -71,3 +71,4 @@ export type GdResult = typeof gdResults.$inferSelect;
 export type InsertGdResult = z.infer<typeof insertGdResultSchema>;
 export type ResumeResult = typeof resumeResults.$inferSelect;
 export type InsertResumeResult = z.infer<typeof insertResumeResultSchema>;
+export type UpdateUser = Partial<InsertUser>;

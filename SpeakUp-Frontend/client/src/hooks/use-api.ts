@@ -7,8 +7,27 @@ import {
   type InsertGdResult, 
   type InsertResumeResult 
 } from "@shared/schema";
+import {
+  type StartInterviewRequest,
+  type StartInterviewResponse,
+  type AnswerRequest,
+  type AnswerResponse,
+  type TeachMeRequest,
+  type TeachMeResponse,
+  type StartGDRequest,
+  type StartGDResponse,
+  type GDMessageRequest,
+  type GDMessageResponse,
+  type GDFeedbackRequest,
+  type GDFeedbackResponse,
+  type GDEndRequest,
+  type GDEndResponse,
+  type AptitudeQuestionsResponse,
+  type ResumeUploadResponse,
+  type DashboardStatsResponse
+} from "../types/api-types";
 
-// Helper for API calls with basic error handling and toast
+// Helper for API calls
 async function apiCall<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     ...options,
@@ -31,6 +50,14 @@ export function useAptitudeHistory(userId: number) {
     queryKey: [api.aptitude.list.path, userId],
     queryFn: () => apiCall<any[]>(buildUrl(api.aptitude.list.path, { userId })),
     enabled: !!userId,
+  });
+}
+
+export function useAptitudeQuestions(topic: string) {
+  return useQuery({
+    queryKey: ["/api/aptitude/questions", topic],
+    queryFn: () => apiCall<AptitudeQuestionsResponse>(`/api/aptitude/questions/${topic}`),
+    enabled: !!topic,
   });
 }
 
@@ -65,6 +92,39 @@ export function useInterviewHistory(userId: number) {
   });
 }
 
+export function useStartInterview() {
+  return useMutation({
+    mutationFn: (data: StartInterviewRequest) =>
+      apiCall<StartInterviewResponse>("/api/interview/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }),
+  });
+}
+
+export function useSubmitInterviewAnswer() {
+  return useMutation({
+    mutationFn: (data: AnswerRequest) =>
+      apiCall<AnswerResponse>("/api/interview/answer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }),
+  });
+}
+
+export function useInterviewTeachMe() {
+  return useMutation({
+    mutationFn: (data: TeachMeRequest) =>
+      apiCall<TeachMeResponse>("/api/interview/teach-me", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }),
+  });
+}
+
 export function useCreateInterviewResult() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -78,7 +138,6 @@ export function useCreateInterviewResult() {
       }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: [api.interview.list.path, data.userId] });
-      toast({ title: "Interview Saved", description: "Feedback is now available in your profile." });
     },
     onError: (error: Error) => {
       toast({ title: "Save Failed", description: error.message, variant: "destructive" });
@@ -93,6 +152,50 @@ export function useGdHistory(userId: number) {
     queryKey: [api.gd.list.path, userId],
     queryFn: () => apiCall<any[]>(buildUrl(api.gd.list.path, { userId })),
     enabled: !!userId,
+  });
+}
+
+export function useStartGD() {
+  return useMutation({
+    mutationFn: (data: StartGDRequest) =>
+      apiCall<StartGDResponse>("/api/gd/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }),
+  });
+}
+
+export function useSendGDMessage() {
+  return useMutation({
+    mutationFn: (data: GDMessageRequest) =>
+      apiCall<GDMessageResponse>("/api/gd/message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }),
+  });
+}
+
+export function useGDFeedback() {
+  return useMutation({
+    mutationFn: (data: GDFeedbackRequest) =>
+      apiCall<GDFeedbackResponse>("/api/gd/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }),
+  });
+}
+
+export function useEndGD() {
+  return useMutation({
+    mutationFn: (data: GDEndRequest) =>
+      apiCall<GDEndResponse>("/api/gd/end", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }),
   });
 }
 
@@ -127,6 +230,16 @@ export function useResumeHistory(userId: number) {
   });
 }
 
+export function useUploadResume() {
+  return useMutation({
+    mutationFn: (formData: FormData) =>
+      apiCall<ResumeUploadResponse>("/api/resume/upload", {
+        method: "POST",
+        body: formData,
+      }),
+  });
+}
+
 export function useCreateResumeResult() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -145,5 +258,15 @@ export function useCreateResumeResult() {
     onError: (error: Error) => {
       toast({ title: "Failed to Save", description: error.message, variant: "destructive" });
     }
+  });
+}
+
+// --- Dashboard Hooks ---
+
+export function useDashboardStats(userId: number) {
+  return useQuery({
+    queryKey: ["/api/dashboard/stats", userId],
+    queryFn: () => apiCall<DashboardStatsResponse>(`/api/dashboard/stats/${userId}`),
+    enabled: !!userId,
   });
 }

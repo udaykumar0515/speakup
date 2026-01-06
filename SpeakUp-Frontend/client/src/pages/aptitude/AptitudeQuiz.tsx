@@ -1,29 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
-import { useCreateAptitudeResult } from "@/hooks/use-api";
+import { useCreateAptitudeResult, useAptitudeQuestions } from "@/hooks/use-api";
 import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
 import 'react-circular-progressbar/dist/styles.css';
-
-const MOCK_QUESTIONS: Record<string, any[]> = {
-  quantitative: [
-    { id: 1, q: "If x + y = 10 and x - y = 4, what is the value of x?", options: ["6", "7", "8", "5"], correct: 1 },
-    { id: 2, q: "What is 20% of 150?", options: ["25", "30", "35", "40"], correct: 1 },
-    { id: 3, q: "A train moves at 60 km/h. How far does it go in 2.5 hours?", options: ["120 km", "150 km", "160 km", "100 km"], correct: 1 },
-  ],
-  logical: [
-    { id: 1, q: "Look at this series: 2, 4, 8, 16, ... What number comes next?", options: ["24", "30", "32", "36"], correct: 2 },
-    { id: 2, q: "SCD, TEF, UGH, ____, WKL", options: ["CMN", "UJI", "VIJ", "IJT"], correct: 2 },
-    { id: 3, q: "Cup is to Coffee as Bowl is to ____?", options: ["Dish", "Soup", "Spoon", "Food"], correct: 1 },
-  ],
-  verbal: [
-    { id: 1, q: "Select the synonym of: BRIEF", options: ["Long", "Short", "Small", "Detailed"], correct: 1 },
-    { id: 2, q: "Find the correctly spelled word.", options: ["Occurence", "Occurrence", "Occurrance", "Occurance"], correct: 1 },
-    { id: 3, q: "He ____ to the market yesterday.", options: ["go", "goes", "went", "gone"], correct: 2 },
-  ],
-};
+import { useToast } from "@/hooks/use-toast";
 
 interface Props {
   topic: string;
@@ -32,12 +15,16 @@ interface Props {
 
 export default function AptitudeQuiz({ topic, onExit }: Props) {
   const { user } = useAuth();
+  const { toast } = useToast();
+  
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<number[]>([]);
   const [isFinished, setIsFinished] = useState(false);
   
   const createResult = useCreateAptitudeResult();
-  const questions = MOCK_QUESTIONS[topic] || [];
+  const { data: questionsData, isLoading, error } = useAptitudeQuestions(topic);
+  
+  const questions = questionsData?.questions || [];
 
   const handleAnswer = (optionIndex: number) => {
     const newAnswers = [...selectedAnswers];
@@ -54,8 +41,12 @@ export default function AptitudeQuiz({ topic, onExit }: Props) {
   };
 
   const finishQuiz = async () => {
+    // Calculate Score
     const correctCount = questions.reduce((acc, q, idx) => {
-      return acc + (selectedAnswers[idx] === q.correct ? 1 : 0);
+      // API returns 'correctAnswer' (0-indexed or 1-indexed? Assuming 0 based on mock logic but usually APIs are 0-indexed for arrays)
+      // Mock had `correct: 1` which matched options array index.
+      // Let's assume API `correctAnswer` matches the index in `options`.
+      return acc + (selectedAnswers[idx] === q.correctAnswer ? 1 : 0);
     }, 0);
 
     const score = Math.round((correctCount / questions.length) * 100);
@@ -69,20 +60,40 @@ export default function AptitudeQuiz({ topic, onExit }: Props) {
           score,
           totalQuestions: questions.length,
           accuracy: score,
-          timeTaken: 120, // Mock time
+          timeTaken: 120, // TODO: Track actual time if needed
         });
       }
       setIsFinished(true);
-    } catch (error) {
-      // Error handled by hook or global interceptor usually, 
-      // but we'll ensure state transitions correctly
-      setIsFinished(true);
+    } catch (err: any) {
+      toast({ title: "Failed to save results", description: err.message, variant: "destructive" });
+      setIsFinished(true); // Show result screen anyway
     }
   };
 
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="flex justify-center items-center min-h-[50vh]">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </Layout>
+    );
+  }
+
+  if (error || !questionsData) {
+    return (
+        <Layout>
+            <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
+                <p className="text-destructive font-medium">Failed to load questions.</p>
+                <Button onClick={onExit}>Go Back</Button>
+            </div>
+        </Layout>
+    );
+  }
+
   if (isFinished) {
     const correctCount = questions.reduce((acc, q, idx) => {
-      return acc + (selectedAnswers[idx] === q.correct ? 1 : 0);
+      return acc + (selectedAnswers[idx] === q.correctAnswer ? 1 : 0);
     }, 0);
     const score = Math.round((correctCount / questions.length) * 100);
 
@@ -143,7 +154,7 @@ export default function AptitudeQuiz({ topic, onExit }: Props) {
 
         <div className="bg-card border rounded-2xl p-8 shadow-sm">
           <h3 className="text-xl font-medium mb-8 leading-relaxed">
-            {currentQuestion.q}
+            {currentQuestion.question}
           </h3>
 
           <div className="space-y-3">

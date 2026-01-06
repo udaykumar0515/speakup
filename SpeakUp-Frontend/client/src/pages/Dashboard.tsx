@@ -2,7 +2,9 @@ import { useAuth } from "@/hooks/use-auth";
 import { Link } from "wouter";
 import { Layout } from "@/components/layout/Layout";
 import { motion } from "framer-motion";
-import { Brain, MessageSquare, Users, FileText, ArrowRight } from "lucide-react";
+import { Brain, MessageSquare, Users, FileText, ArrowRight, Loader2, Trophy, Clock, Target } from "lucide-react";
+import { useDashboardStats } from "@/hooks/use-api";
+import { Card, CardContent } from "@/components/ui/card";
 
 const TOOLS = [
   {
@@ -49,6 +51,8 @@ const TOOLS = [
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const { data, isLoading } = useDashboardStats(user?.id || 0);
+  const statsResponse = data;
 
   return (
     <Layout>
@@ -60,9 +64,23 @@ export default function Dashboard() {
             </h1>
             <p className="text-muted-foreground mt-1">Ready to boost your placement preparation today?</p>
           </div>
-          <div className="bg-white px-4 py-2 rounded-xl shadow-sm border text-sm font-medium">
-            Next Goal: Complete 1 Aptitude Quiz
-          </div>
+          {/* Stats Summary */}
+          {isLoading ? (
+             <div className="flex gap-4">
+                <div className="h-10 w-32 bg-muted animate-pulse rounded-xl" />
+             </div>
+          ) : statsResponse && statsResponse.stats ? (
+            <div className="flex gap-4">
+              <div className="bg-white px-4 py-2 rounded-xl shadow-sm border text-sm font-medium flex items-center gap-2">
+                <Trophy className="w-4 h-4 text-yellow-500" />
+                <span>{(statsResponse.stats.totalInterviews + statsResponse.stats.totalGdSessions + statsResponse.stats.totalAptitudeTests)} Sessions</span>
+              </div>
+              <div className="bg-white px-4 py-2 rounded-xl shadow-sm border text-sm font-medium flex items-center gap-2">
+                 <Target className="w-4 h-4 text-blue-500" />
+                 <span>Avg Score: {Math.round((statsResponse.stats.averageInterviewScore + statsResponse.stats.averageGdScore + statsResponse.stats.averageAptitudeScore) / 3)}%</span>
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -96,12 +114,51 @@ export default function Dashboard() {
           ))}
         </div>
 
-        {/* Recent Activity Placeholder */}
+        {/* Recent Activity */}
         <div className="bg-card rounded-2xl border p-6">
-          <h3 className="font-display font-bold text-lg mb-4">Recent Activity</h3>
-          <div className="flex flex-col items-center justify-center h-32 text-muted-foreground border-2 border-dashed rounded-xl border-muted">
-            <p>No recent activity yet. Start your first practice session!</p>
-          </div>
+          <h3 className="font-display font-bold text-lg mb-4 flex items-center gap-2">
+            <Target className="w-5 h-5 text-primary" />
+            Recent Activity
+          </h3>
+          
+          {isLoading ? (
+             <div className="flex justify-center p-8"><Loader2 className="animate-spin w-8 h-8 text-muted-foreground"/></div>
+          ) : statsResponse?.recentActivity && statsResponse.recentActivity.length > 0 ? (
+            <div className="space-y-4">
+               {statsResponse.recentActivity.map((activity, i) => (
+                 <div key={i} className="flex items-center justify-between p-4 bg-muted/20 hover:bg-muted/40 rounded-xl transition-colors border border-transparent hover:border-muted">
+                    <div className="flex items-center gap-4">
+                       <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shadow-sm ${
+                          activity.type === 'aptitude' ? 'bg-blue-500' : 
+                          activity.type === 'interview' ? 'bg-purple-500' : 
+                          activity.type === 'gd' ? 'bg-orange-500' : 'bg-emerald-500'
+                       }`}>
+                          {activity.type === 'aptitude' ? <Brain className="w-5 h-5"/> : 
+                           activity.type === 'interview' ? <MessageSquare className="w-5 h-5"/> : 
+                           activity.type === 'gd' ? <Users className="w-5 h-5"/> : <FileText className="w-5 h-5"/>}
+                       </div>
+                       <div>
+                          <p className="font-bold text-sm text-foreground">{activity.description}</p>
+                          <p className="text-xs text-muted-foreground">{new Date(activity.date).toLocaleDateString()}</p>
+                       </div>
+                    </div>
+                    {activity.score !== undefined && (
+                        <div className={`text-sm font-bold px-3 py-1 rounded-full ${
+                             activity.score >= 80 ? 'bg-green-100 text-green-700' : 
+                             activity.score >= 60 ? 'bg-yellow-100 text-yellow-700' : 
+                             'bg-red-100 text-red-700'
+                        }`}>
+                           {activity.score}% Score
+                        </div>
+                    )}
+                 </div>
+               ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-32 text-muted-foreground border-2 border-dashed rounded-xl border-muted">
+               <p>No recent activity yet. Start your first practice session!</p>
+            </div>
+          )}
         </div>
       </div>
     </Layout>

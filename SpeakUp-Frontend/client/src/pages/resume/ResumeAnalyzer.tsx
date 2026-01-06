@@ -3,17 +3,21 @@ import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
-import { useCreateResumeResult } from "@/hooks/use-api";
+import { useCreateResumeResult, useUploadResume } from "@/hooks/use-api";
 import { useDropzone } from "react-dropzone";
-import { UploadCloud, FileText, CheckCircle, AlertTriangle } from "lucide-react";
+import { UploadCloud, FileText, CheckCircle, AlertTriangle, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
+import { useToast } from "@/hooks/use-toast";
+import { ResumeUploadResponse } from "@/types/api-types";
 
 export default function ResumeAnalyzer() {
   const { user } = useAuth();
-  const [file, setFile] = useState<File | null>(null);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const { toast } = useToast();
   
+  const [file, setFile] = useState<File | null>(null);
+  const [result, setResult] = useState<ResumeUploadResponse | null>(null);
+  
+  const uploadResume = useUploadResume();
   const createResult = useCreateResumeResult();
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -28,40 +32,26 @@ export default function ResumeAnalyzer() {
 
   const handleAnalyze = async () => {
     if (!file || !user) return;
-    setAnalyzing(true);
     
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    const mockResult = {
-      atsScore: 78,
-      suggestions: [
-        "Use more action verbs (e.g., Led, Developed, Created).",
-        "Add numerical metrics to quantify your achievements.",
-        "Ensure consistent date formatting."
-      ],
-      parsedData: {
-        name: user.name,
-        email: user.email,
-        skills: ["React", "TypeScript", "Node.js", "Tailwind CSS"],
-        experience: "3+ years of frontend development",
-        education: "B.Tech in Computer Science"
-      }
-    };
+    // Create Form Data
+    const formData = new FormData();
+    formData.append("file", file);
 
     try {
+      // 1. Upload and Analyze
+      const analysisData = await uploadResume.mutateAsync(formData);
+      setResult(analysisData);
+
+      // 2. Save Result to History
       await createResult.mutateAsync({
         userId: user.id,
-        atsScore: mockResult.atsScore,
-        suggestions: mockResult.suggestions,
+        atsScore: analysisData.atsScore,
+        suggestions: analysisData.suggestions,
         fileName: file.name
       });
-
-      setResult(mockResult);
-    } catch (error) {
-      // Error handled by use-api hook usually
-    } finally {
-      setAnalyzing(false);
+      
+    } catch (error: any) {
+      toast({ title: "Analysis Failed", description: error.message, variant: "destructive" });
     }
   };
 
@@ -102,10 +92,15 @@ export default function ResumeAnalyzer() {
               <Button 
                 size="lg" 
                 onClick={handleAnalyze} 
-                disabled={!file || analyzing}
+                disabled={!file || uploadResume.isPending}
                 className="w-full sm:w-auto min-w-[200px]"
               >
-                {analyzing ? "Analyzing..." : "Analyze Resume"}
+                {uploadResume.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Analyzing...
+                  </>
+                ) : "Analyze Resume"}
               </Button>
             </div>
           </Card>
@@ -138,11 +133,11 @@ export default function ResumeAnalyzer() {
                 </div>
                 <div className="p-4 bg-muted/30 rounded-lg">
                   <p className="text-xs font-bold text-muted-foreground uppercase">Experience Summary</p>
-                  <p className="text-sm mt-1">{result.parsedData?.experience}</p>
+                  <p className="text-sm mt-1">{result.parsedData?.experience || "N/A"}</p>
                 </div>
                 <div className="p-4 bg-muted/30 rounded-lg md:col-span-2">
                   <p className="text-xs font-bold text-muted-foreground uppercase">Education</p>
-                  <p className="text-sm mt-1">{result.parsedData?.education}</p>
+                  <p className="text-sm mt-1">{result.parsedData?.education || "N/A"}</p>
                 </div>
               </div>
             </div>

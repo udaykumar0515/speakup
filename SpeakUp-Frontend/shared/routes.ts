@@ -64,6 +64,16 @@ export const api = {
         400: errorSchemas.validation,
       },
     },
+    questions: {
+      method: 'GET' as const,
+      path: '/api/aptitude/questions/:topic',
+      responses: {
+        200: z.object({
+            topic: z.string(),
+            questions: z.array(z.any())
+        }),
+      },
+    },
   },
   interview: {
     list: {
@@ -81,6 +91,24 @@ export const api = {
         201: z.custom<typeof interviewResults.$inferSelect>(),
         400: errorSchemas.validation,
       },
+    },
+    start: {
+      method: 'POST' as const,
+      path: '/api/interview/start',
+      input: z.object({ interviewType: z.string() }),
+      responses: { 200: z.any() }
+    },
+    answer: {
+      method: 'POST' as const,
+      path: '/api/interview/answer',
+      input: z.object({ questionNumber: z.number() }),
+      responses: { 200: z.any() }
+    },
+    teachMe: {
+      method: 'POST' as const,
+      path: '/api/interview/teach-me',
+      input: z.any(),
+      responses: { 200: z.any() }
     },
   },
   gd: {
@@ -100,6 +128,30 @@ export const api = {
         400: errorSchemas.validation,
       },
     },
+    start: {
+        method: 'POST' as const,
+        path: '/api/gd/start',
+        input: z.object({ topic: z.string(), difficulty: z.string() }),
+        responses: { 200: z.any() }
+    },
+    message: {
+        method: 'POST' as const,
+        path: '/api/gd/message',
+        input: z.any(),
+        responses: { 200: z.any() }
+    },
+    feedback: {
+        method: 'POST' as const,
+        path: '/api/gd/feedback',
+        input: z.any(),
+        responses: { 200: z.any() }
+    },
+    end: {
+        method: 'POST' as const,
+        path: '/api/gd/end',
+        input: z.any(),
+        responses: { 200: z.any() }
+    }
   },
   resume: {
     list: {
@@ -118,6 +170,19 @@ export const api = {
         400: errorSchemas.validation,
       },
     },
+    upload: {
+        method: 'POST' as const,
+        path: '/api/resume/upload',
+        input: z.any(),
+        responses: { 200: z.any() }
+    }
+  },
+  dashboard: {
+      stats: {
+          method: 'GET' as const,
+          path: '/api/dashboard/stats/:userId',
+          responses: { 200: z.any() }
+      }
   },
   ai: {
     chat: {
