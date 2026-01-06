@@ -1,0 +1,92 @@
+### Instructions:
+### 1. Install the "REST Client" extension for VS Code (id: humao.rest-client).
+### 2. You will see "Send Request" clickable links above each URL.
+### 3. Click "Send Request" to test the endpoint.
+### 4. Ensure your backend is running (`uvicorn main:app --reload`).
+
+@baseUrl = http://localhost:8000
+
+### Root Check
+GET {{baseUrl}}/
+
+### ---------------- INTERVIEW ----------------
+
+### Start Interview
+POST {{baseUrl}}/api/interview/start
+Content-Type: application/json
+
+{
+  "userId": 1,
+  "interviewType": "Technical",
+  "jobRole": "Frontend Developer"
+}
+
+### Answer Question
+POST {{baseUrl}}/api/interview/answer
+Content-Type: application/json
+
+{
+  "sessionId": "replace-with-uuid",
+  "userId": 1,
+  "answer": "I use React and TypeScript.",
+  "questionNumber": 0
+}
+
+### Teach Me
+POST {{baseUrl}}/api/interview/teach-me
+Content-Type: application/json
+
+{
+  "sessionId": "replace-with-uuid",
+  "questionNumber": 0,
+  "question": "Tell me about yourself.",
+  "userAnswer": "I am a dev."
+}
+
+### Save Result
+POST {{baseUrl}}/api/interview
+Content-Type: application/json
+
+{
+    "userId": 1,
+    "communicationScore": 85,
+    "confidenceScore": 90,
+    "relevanceScore": 80,
+    "feedback": "Great job"
+}
+
+### ---------------- GD ----------------
+
+### Start GD
+POST {{baseUrl}}/api/gd/start
+Content-Type: application/json
+
+{
+  "userId": 1,
+  "topic": "AI in Healthcare",
+  "difficulty": "Medium"
+}
+
+### Send Message
+POST {{baseUrl}}/api/gd/message
+Content-Type: application/json
+
+{
+  "sessionId": "replace-with-uuid",
+  "userId": 1,
+  "message": "AI can help diagnose diseases faster."
+}
+
+### ---------------- DASHBOARD ----------------
+
+### Get Stats
+GET {{baseUrl}}/api/dashboard/stats/1
+
+### ---------------- LEGACY AZURE ----------------
+
+### Chat Mini
+POST {{baseUrl}}/chat-mini
+Content-Type: application/x-www-form-urlencoded
+
+message=Hello
+
