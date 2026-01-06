@@ -1,0 +1,95 @@
+import { Switch, Route, Redirect } from "wouter";
+import { queryClient } from "./lib/queryClient";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthProvider, useAuth } from "@/hooks/use-auth";
+
+import Login from "@/pages/auth/Login";
+import Signup from "@/pages/auth/Signup";
+import Dashboard from "@/pages/Dashboard";
+import AptitudePractice from "@/pages/aptitude/AptitudePractice";
+import InterviewSetup from "@/pages/interview/InterviewSetup";
+import MockInterview from "@/pages/interview/MockInterview";
+import GDSetup from "@/pages/gd/GDSetup";
+import GDSimulator from "@/pages/gd/GDSimulator";
+import ResumeAnalyzer from "@/pages/resume/ResumeAnalyzer";
+import VoiceOrbDemo from "@/pages/VoiceOrbDemo";
+import Profile from "@/pages/Profile";
+import NotFound from "@/pages/not-found";
+
+// Protected Route Wrapper
+function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
+  const { user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  }
+
+  if (!user) {
+    return <Redirect to="/auth" />;
+  }
+
+  return <Component />;
+}
+
+function Router() {
+  return (
+    <Switch>
+      {/* Public Routes */}
+      <Route path="/auth" component={Login} />
+      <Route path="/auth/signup" component={Signup} />
+
+      {/* Protected Routes */}
+      <Route path="/dashboard">
+        <ProtectedRoute component={Dashboard} />
+      </Route>
+      <Route path="/aptitude">
+        <ProtectedRoute component={AptitudePractice} />
+      </Route>
+      <Route path="/interview">
+        <ProtectedRoute component={InterviewSetup} />
+      </Route>
+      <Route path="/interview/start">
+        <ProtectedRoute component={MockInterview} />
+      </Route>
+      <Route path="/gd">
+        <ProtectedRoute component={GDSetup} />
+      </Route>
+      <Route path="/gd/session">
+        <ProtectedRoute component={GDSimulator} />
+      </Route>
+      <Route path="/resume">
+        <ProtectedRoute component={ResumeAnalyzer} />
+      </Route>
+      <Route path="/voice-orb-demo">
+        <ProtectedRoute component={VoiceOrbDemo} />
+      </Route>
+      <Route path="/profile">
+        <ProtectedRoute component={Profile} />
+      </Route>
+
+      {/* Default Redirect */}
+      <Route path="/">
+        {() => <Redirect to="/dashboard" />}
+      </Route>
+
+      <Route component={NotFound} />
+    </Switch>
+  );
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <AuthProvider>
+          <Toaster />
+          <Router />
+        </AuthProvider>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+}
+
+export default App;
