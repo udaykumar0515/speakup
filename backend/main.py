@@ -1,6 +1,7 @@
 import os
 import requests
-from typing import List, Optional
+from typing import List, Optional, Dict
+from datetime import datetime
 from fastapi import FastAPI, APIRouter, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -60,21 +61,36 @@ class StartGdReq(BaseModel):
     userId: int
     topic: str
     difficulty: str
-    duration: Optional[int] = 600
+    duration: int = 600  # Default 10 minutes
 
 class GdMessageReq(BaseModel):
     sessionId: str
     userId: int
     message: str
+    action: Optional[str] = "speak"  # speak | pause | conclude
 
-class GdFeedbackReq(BaseModel):
-    sessionId: str
-    userId: int
+class GdBotMessage(BaseModel):
+    speaker: str
+    text: str
+    timestamp: datetime
+
+class GdMessageResp(BaseModel):
+    botMessages: List[GdBotMessage] = []
+    nextSpeaker: str
+    timeRemaining: int
+    canConclude: bool
+    turnCounts: Dict[str, int]
+    status: Optional[str] = None
+    pauseCount: Optional[int] = 0
 
 class GdEndReq(BaseModel):
     sessionId: str
     userId: int
     userMessages: List[dict]
+
+class GdFeedbackReq(BaseModel):
+    sessionId: str
+    userId: int
 
 class SaveGdReq(BaseModel):
     userId: int
@@ -192,14 +208,14 @@ def get_interview_history(userId: int):
 # --- GD ---
 @gd_router.post("/start")
 def start_gd(req: StartGdReq):
-    result = gd_service.start_gd_session(req.userId, req.topic, req.difficulty)
+    result = gd_service.start_gd_session(req.userId, req.topic, req.difficulty, req.duration)
     if not result:
         raise HTTPException(status_code=500, detail="Failed to start GD session")
     return result
 
 @gd_router.post("/message")
 def gd_message(req: GdMessageReq):
-    result = gd_service.process_message(req.sessionId, req.userId, req.message)
+    result = gd_service.process_message(req.sessionId, req.userId, req.message, req.action)
     if result is None:
         raise HTTPException(status_code=404, detail="Session not found")
     return result

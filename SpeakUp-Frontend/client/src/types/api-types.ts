@@ -48,22 +48,27 @@ export interface TeachMeResponse {
   tips: string[];
 }
 
+// --- Group Discussion ---
+
 export interface StartGDRequest {
   userId: number;
   topic: string;
-  difficulty: string;
-  duration: number;
+  difficulty: "easy" | "medium" | "hard";
+  duration: number; // in seconds
+}
+
+export interface BotParticipant {
+  name: string;
+  personality: string;
 }
 
 export interface StartGDResponse {
   sessionId: string;
   topic: string;
   difficulty: string;
-  bots: {
-    name: string;
-    personality: string;
-    role: string;
-  }[];
+  duration: number;
+  bots: BotParticipant[];
+  userName: string;
   moderatorMessage: string;
 }
 
@@ -71,6 +76,7 @@ export interface GDMessageRequest {
   sessionId: string;
   userId: number;
   message: string;
+  action?: "speak" | "pause" | "conclude" | "silence_break";
 }
 
 export interface GDMessageResponse {
@@ -79,6 +85,13 @@ export interface GDMessageResponse {
     text: string;
     timestamp: string;
   }[];
+  nextSpeaker: string;
+  timeRemaining: number;
+  canConclude: boolean;
+  turnCounts: Record<string, number>;
+  status?: string; // for pause
+  pauseCount?: number;
+  shouldEndSession?: boolean;
 }
 
 export interface GDFeedbackRequest {
@@ -87,9 +100,18 @@ export interface GDFeedbackRequest {
 }
 
 export interface GDFeedbackResponse {
+  verbalAbility: number;
+  confidence: number;
+  interactivity: number;
+  argumentQuality: number;
+  topicRelevance: number;
+  leadership: number;
+  overallScore: number;
   feedback: string;
-  participationScore: number;
-  communicationQuality: number;
+  strengths: string[];
+  improvements: string[];
+  pauseCount: number;
+  pausePenalty: number;
 }
 
 export interface GDEndRequest {
@@ -102,13 +124,18 @@ export interface GDEndRequest {
 }
 
 export interface GDEndResponse {
-  score: number;
-  participationRate: number;
-  communicationScore: number;
-  initiativeScore: number;
+  verbalAbility: number;
+  confidence: number;
+  interactivity: number;
+  argumentQuality: number;
+  topicRelevance: number;
+  leadership: number;
+  overallScore: number;
   feedback: string;
   strengths: string[];
   improvements: string[];
+  pauseCount: number;
+  pausePenalty: number;
 }
 
 export interface AptitudeQuestionsResponse {
