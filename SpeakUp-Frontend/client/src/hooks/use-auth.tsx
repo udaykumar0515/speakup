@@ -1,26 +1,37 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useLocation } from "wouter";
-import { User } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
+import { 
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+  sendPasswordResetEmail,
+  onAuthStateChanged,
+  updateProfile as firebaseUpdateProfile,
+  User as FirebaseUser
+} from "firebase/auth";
+import { auth, googleProvider } from "@/firebase";
 
-// Mock user type for the frontend state
+// Auth user type based on Firebase
 type AuthUser = {
-  id: number;
+  uid: string;  // Firebase UID
   email: string;
   name: string;
-  age: number | null;
-  gender: string | null;
-  occupation: string | null;
-  avatarUrl: string | null;
-  firebaseUid: string;
+  photoURL: string | null;
+  age?: number | null;
+  gender?: string | null;
+  occupation?: string | null;
+  avatarUrl?: string | null;
 };
 
 interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string, name: string) => Promise<void>;
-  logout: () => void;
+  loginWithEmail: (email: string, password: string) => Promise<void>;
+  signupWithEmail: (email: string, password: string, name: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
+  logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   updateProfile: (updates: Partial<AuthUser>) => Promise<void>;
 }
@@ -28,83 +39,180 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const [, setLocation] = useLocation();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [, setLocation] = useLocation();
   const { toast } = useToast();
 
+  // Listen to Firebase auth state changes
   useEffect(() => {
-    // Check localStorage on mount
-    const storedUser = localStorage.getItem("speakup_user");
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-    setIsLoading(false);
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
+      if (firebaseUser) {
+        // User is signed in - get basic info from Firebase
+        const authUser: AuthUser = {
+          uid: firebaseUser.uid,
+          email: firebaseUser.email || "",
+          name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "User",
+          photoURL: firebaseUser.photoURL,
+        };
+        
+        // Fetch additional metadata from backend
+        try {
+          const token = await firebaseUser.getIdToken();
+          const response = await fetch(`http://localhost:8000/api/users/${firebaseUser.uid}`, {
+            headers: {
+              "Authorization": `Bearer ${token}`
+            }
+          });
+          
+          if (response.ok) {
+            const userData = await response.json();
+            // Merge backend data with Firebase data
+            const metadata = userData.metadata || {};
+            authUser.age = metadata.age || userData.age;
+            authUser.gender = metadata.gender || userData.gender;
+            authUser.occupation = metadata.occupation || userData.occupation;
+            authUser.avatarUrl = metadata.avatarUrl || userData.avatarUrl;
+          }
+        } catch (error) {
+          console.log("Could not fetch user metadata:", error);
+          // Continue with basic auth data
+        }
+        
+        setUser(authUser);
+      } else {
+        // User is signed out
+        setUser(null);
+      }
+      setIsLoading(false);
+    });
+
+    // Cleanup subscription
+    return () => unsubscribe();
   }, []);
 
-  const login = async (email: string, _password: string) => {
-    setIsLoading(true);
-    
-    const mockUser: AuthUser = {
-      id: 1, 
-      email,
-      name: email.split("@")[0],
-      age: null,
-      gender: null,
-      occupation: null,
-      avatarUrl: null,
-      firebaseUid: "mock-firebase-uid",
-    };
-    
-    setUser(mockUser);
-    localStorage.setItem("speakup_user", JSON.stringify(mockUser));
-    setIsLoading(false);
-    toast({ title: "Welcome back!", description: "Successfully logged in." });
-    setLocation("/dashboard");
+  const loginWithEmail = async (email: string, password: string) => {
+    try {
+      setIsLoading(true);
+      await signInWithEmailAndPassword(auth, email, password);
+      setLocation("/dashboard");
+      toast({ title: "Welcome back!", description: "Logged in successfully" });
+    } catch (error: any) {
+      toast({ title: "Login failed", description: error.message, variant: "destructive" });
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const signup = async (email: string, _password: string, name: string) => {
-    setIsLoading(true);
-    
-    const mockUser: AuthUser = {
-      id: Math.floor(Math.random() * 1000) + 1,
-      email,
-      name: name || email.split("@")[0],
-      age: null,
-      gender: null,
-      occupation: null,
-      avatarUrl: null,
-      firebaseUid: `mock-uid-${Date.now()}`,
-    };
-    
-    setUser(mockUser);
-    localStorage.setItem("speakup_user", JSON.stringify(mockUser));
-    setIsLoading(false);
-    toast({ title: "Account created", description: "Welcome to SpeakUp!" });
-    setLocation("/dashboard");
+  const signupWithEmail = async (email: string, password: string, name: string) => {
+    try {
+      setIsLoading(true);
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      
+      // Update display name using Firebase updateProfile
+      if (userCredential.user) {
+        await firebaseUpdateProfile(userCredential.user, {
+          displayName: name
+        });
+        // Refresh user state
+        await userCredential.user.reload();
+      }
+      
+      setLocation("/dashboard");
+      toast({ title: "Account created!", description: "Welcome to SpeakUp" });
+    } catch (error: any) {
+      toast({ title: "Signup failed", description: error.message, variant: "destructive" });
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem("speakup_user");
-    toast({ title: "Logged out", description: "See you next time." });
-    setLocation("/auth");
+  const loginWithGoogle = async () => {
+    try {
+      setIsLoading(true);
+      await signInWithPopup(auth, googleProvider);
+      setLocation("/dashboard");
+      toast({ title: "Welcome!", description: "Logged in with Google" });
+    } catch (error: any) {
+      toast({ title: "Google login failed", description: error.message, variant: "destructive" });
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const updateProfile = async (updates: Partial<AuthUser>) => {
-    if (!user) return;
-    const updatedUser = { ...user, ...updates };
-    setUser(updatedUser);
-    localStorage.setItem("speakup_user", JSON.stringify(updatedUser));
-    toast({ title: "Profile updated", description: "Your changes have been saved locally." });
+  const logout = async () => {
+    try {
+      await signOut(auth);
+      setLocation("/auth");
+      toast({ title: "Logged out", description: "See you soon!" });
+    } catch (error: any) {
+      toast({ title: "Logout failed", description: error.message, variant: "destructive" });
+      throw error;
+    }
   };
 
   const resetPassword = async (email: string) => {
-    toast({ title: "Mock Reset Email", description: `A reset link would be sent to ${email} in production.` });
+    try {
+      await sendPasswordResetEmail(auth, email);
+      toast({ 
+        title: "Reset email sent", 
+        description: `Password reset link sent to ${email}` 
+      });
+    } catch (error: any) {
+      toast({ 
+        title: "Reset failed", 
+        description: error.message, 
+        variant: "destructive" 
+      });
+      throw error;
+    }
+  };
+
+  const updateProfile = async (updates: Partial<AuthUser>) => {
+    if (!user || !auth.currentUser) return;
+    
+    try {
+      // Update backend via API
+      const response = await fetch(`http://localhost:8000/api/users/${user.uid}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${await auth.currentUser.getIdToken()}`
+        },
+        body: JSON.stringify(updates)
+      });
+      
+      if (response.ok) {
+        // Update local state
+        setUser({ ...user, ...updates });
+        toast({ title: "Profile updated", description: "Your changes have been saved." });
+      } else {
+        throw new Error("Failed to update profile");
+      }
+    } catch (error: any) {
+      toast({ 
+        title: "Update failed", 
+        description: error.message, 
+        variant: "destructive" 
+      });
+      throw error;
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, signup, logout, resetPassword, updateProfile }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      isLoading, 
+      loginWithEmail, 
+      signupWithEmail, 
+      loginWithGoogle, 
+      logout, 
+      resetPassword,
+      updateProfile
+    }}>
       {children}
     </AuthContext.Provider>
   );

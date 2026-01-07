@@ -35,7 +35,7 @@ export default function ResumeAnalyzer() {
     
     // Create Form Data
     const formData = new FormData();
-    formData.append("userId", user.id.toString());
+    formData.append("userId", user?.uid || "");
     formData.append("file", file);
 
     try {
@@ -45,7 +45,7 @@ export default function ResumeAnalyzer() {
 
       // 2. Save Result to History
       await createResult.mutateAsync({
-        userId: user.id,
+        userId: user?.uid || "",
         atsScore: analysisData.atsScore,
         suggestions: analysisData.suggestions,
         fileName: file.name

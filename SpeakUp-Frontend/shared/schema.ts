@@ -15,7 +15,7 @@ export type User = InsertUser & { id: number; createdAt: string | null };
 
 // --- Aptitude ---
 export const insertAptitudeResultSchema = z.object({
-  userId: z.number(),
+  userId: z.string(),  // Firebase UID
   topic: z.string(),
   score: z.number(),
   totalQuestions: z.number(),
@@ -27,7 +27,7 @@ export type AptitudeResult = InsertAptitudeResult & { id: number; createdAt: str
 
 // --- Interview ---
 export const insertInterviewResultSchema = z.object({
-  userId: z.number(),
+  userId: z.string(),  // Firebase UID
   communicationScore: z.number().nullable().optional(),
   confidenceScore: z.number().nullable().optional(),
   relevanceScore: z.number().nullable().optional(),
@@ -38,7 +38,7 @@ export type InterviewResult = InsertInterviewResult & { id: number; createdAt: s
 
 // --- GD ---
 export const insertGdResultSchema = z.object({
-  userId: z.number(),
+  userId: z.string(),  // Firebase UID
   topic: z.string(),
   duration: z.number().nullable().optional(),
   score: z.number().nullable().optional(),
@@ -48,7 +48,7 @@ export type GdResult = InsertGdResult & { id: number; createdAt: string | null }
 
 // --- Resume ---
 export const insertResumeResultSchema = z.object({
-  userId: z.number(),
+  userId: z.string(),  // Firebase UID
   atsScore: z.number().nullable().optional(),
   suggestions: z.array(z.string()).nullable().optional(),
   fileName: z.string().nullable().optional(),

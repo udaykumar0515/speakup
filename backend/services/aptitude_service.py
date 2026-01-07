@@ -3,13 +3,16 @@ import json
 import uuid
 import random
 import requests
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
 from models import AptitudeResult
+from datetime import datetime
 from dotenv import load_dotenv
+from firebase_config import firestore_client
 
 # Load environment variables
 load_dotenv()
-
-APTITUDE_RESULTS = []
 
 AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
 AZURE_OPENAI_KEY = os.getenv("AZURE_OPENAI_KEY")
@@ -177,6 +180,16 @@ def submit_test(userId: int, topic: str, questions: list, answers: list, timeTak
     questions_answered = total_questions - unanswered_count
     completion_percentage = round((questions_answered / total_questions) * 100) if total_questions > 0 else 0
     
+    # Determine performance level
+    if score_percentage >= 90:
+        performance_level = "Excellent"
+    elif score_percentage >= 75:
+        performance_level = "Good"
+    elif score_percentage >= 60:
+        performance_level = "Average"
+    else:
+        performance_level = "Needs Improvement"
+    
     # Create result object
     result = AptitudeResult(
         id=str(uuid.uuid4()),
@@ -186,11 +199,19 @@ def submit_test(userId: int, topic: str, questions: list, answers: list, timeTak
         totalQuestions=total_questions,
         accuracy=score_percentage,
         timeTaken=timeTaken,
+        correctAnswers=correct_count,
+        incorrectAnswers=incorrect_count,
+        unansweredQuestions=unanswered_count,
+        performanceLevel=performance_level,
         createdAt=datetime.now().isoformat()
     )
     
-    # Save to storage
-    APTITUDE_RESULTS.append(result)
+    # Save to Firestore
+    try:
+        firestore_client.collection('aptitude_results').document(result.id).set(result.model_dump())
+        print(f"✅ Aptitude result saved to Firestore: {result.id}")
+    except Exception as e:
+        print(f"❌ Failed to save to Firestore: {str(e)}")
     
     # Return comprehensive results
     return {
@@ -222,10 +243,32 @@ def submit_test(userId: int, topic: str, questions: list, answers: list, timeTak
     }
 
 def save_result(result: AptitudeResult):
+    """Save aptitude result to Firestore"""
     result.id = str(uuid.uuid4())
-    APTITUDE_RESULTS.append(result)
+    
+    result_dict = result.model_dump()
+    result_dict['createdAt'] = datetime.now()
+    
+    firestore_client.collection('aptitude_results').document(result.id).set(result_dict)
+    
     return result
 
-def get_history(userId: int):
-    return [r for r in APTITUDE_RESULTS if r.userId == userId]
-
+def get_history(userId: str):
+    """Get user's aptitude history from Firestore"
+    # Note: Removed order_by to avoid composite index requirement
+    # Sorting is done in Python instead
+    """
+    results = firestore_client.collection('aptitude_results')\
+        .where('userId', '==', userId)\
+        .stream()
+    
+    history = [doc.to_dict() for doc in results]
+    # Sort by createdAt in Python (descending)
+    def get_sort_key(x):
+        created = x.get('createdAt', '')
+        if hasattr(created, 'isoformat'):
+            return created.isoformat()
+        return str(created)
+        
+    history.sort(key=get_sort_key, reverse=True)
+    return history

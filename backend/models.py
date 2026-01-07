@@ -12,27 +12,41 @@ class User(BaseModel):
 # --- APTITUDE ---
 class AptitudeResult(BaseModel):
     id: Optional[str] = None
-    userId: int
+    userId: str  # Firebase UID
     topic: str
     score: int
     totalQuestions: int
     accuracy: int
     timeTaken: int
+    
+    # Answer breakdown
+    correctAnswers: Optional[int] = None
+    incorrectAnswers: Optional[int] = None
+    unansweredQuestions: Optional[int] = None
+    performanceLevel: Optional[str] = None
+    
     createdAt: datetime = Field(default_factory=datetime.now)
 
 # --- INTERVIEW ---
 class InterviewResult(BaseModel):
     id: Optional[str] = None
-    userId: int
+    userId: str  # Firebase UID
     communicationScore: int
     confidenceScore: int
     relevanceScore: int
     feedback: str
+    
+    # Session metadata
+    interviewType: Optional[str] = None
+    jobRole: Optional[str] = None
+    questionCount: Optional[int] = None
+    sessionDuration: Optional[int] = None  # minutes
+    
     createdAt: datetime = Field(default_factory=datetime.now)
 
 class InterviewSession(BaseModel):
     sessionId: str
-    userId: int
+    userId: str  # Firebase UID
     interviewType: str
     jobRole: Optional[str] = None
     questions: List[Dict] = Field(default_factory=list) 
@@ -43,15 +57,28 @@ class InterviewSession(BaseModel):
 # --- GD ---
 class GdResult(BaseModel):
     id: Optional[str] = None
-    userId: int
+    userId: str  # Firebase UID
     topic: str
     duration: int
-    score: int
+    score: int  # Overall score
+    
+    # Detailed metrics
+    verbalAbility: Optional[int] = None
+    confidence: Optional[int] = None
+    interactivity: Optional[int] = None
+    argumentQuality: Optional[int] = None
+    topicRelevance: Optional[int] = None
+    leadership: Optional[int] = None
+    strengths: List[str] = Field(default_factory=list)
+    improvements: List[str] = Field(default_factory=list)
+    pauseCount: Optional[int] = None
+    pausePenalty: Optional[int] = None
+    
     createdAt: datetime = Field(default_factory=datetime.now)
 
 class GdSession(BaseModel):
     sessionId: str
-    userId: int
+    userId: str  # Firebase UID
     topic: str
     difficulty: str
     bots: List[Dict] = Field(default_factory=list)
@@ -62,7 +89,8 @@ class GdSession(BaseModel):
 # --- RESUME ---
 class ResumeResult(BaseModel):
     id: Optional[str] = None
-    userId: int
+    userId: str  # Firebase UID
+    atsScore: int
     atsScore: int
     suggestions: List[str] = Field(default_factory=list)
     fileName: Optional[str] = None

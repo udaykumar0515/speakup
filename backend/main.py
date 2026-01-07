@@ -2,11 +2,14 @@ import os
 import requests
 from typing import List, Optional, Dict
 from datetime import datetime
-from fastapi import FastAPI, APIRouter, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, APIRouter, UploadFile, File, Form, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from dotenv import load_dotenv
+
+# Import Firebase
+from firebase_config import verify_firebase_token, get_or_create_user, firestore_client
 
 # Use models (Pydantic)
 from models import (
@@ -29,23 +32,51 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ---------- AUTHENTICATION MIDDLEWARE ----------
+async def get_current_user(authorization: str = Header(None)):
+    """Extract and verify Firebase token from Authorization header"""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Missing authorization header")
+    
+    try:
+        # Extract token from "Bearer <token>"
+        scheme, token = authorization.split(" ")
+        if scheme.lower() != "bearer":
+            raise HTTPException(status_code=401, detail="Invalid authentication scheme")
+        
+        # Verify token
+        decoded_token = verify_firebase_token(token)
+        uid = decoded_token['uid']
+        email = decoded_token.get('email', '')
+        name = decoded_token.get('name', email.split('@')[0] if email else 'User')
+        
+        # Get or create user in Firestore
+        user = get_or_create_user(uid, email, name)
+        
+        return user
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Invalid authorization header format")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Authentication failed: {str(e)}")
+
 # ---------- REQUEST MODELS ----------
 class StartInterviewReq(BaseModel):
-    userId: int
+    userId: str  # Firebase UID
     interviewType: str  # technical, hr, behavioral
     difficulty: str  # junior, mid, senior
     mode: str  # practice, graded
+    jobRole: Optional[str] = "Software Engineer"  # Target job role
     resumeData: Optional[dict] = None  # Output from Resume Analyzer
 
 class MessageInterviewReq(BaseModel):
     sessionId: str
-    userId: int
+    userId: str  # Firebase UID
     message: str
     action: str  # greet, answer
 
 class EndInterviewReq(BaseModel):
     sessionId: str
-    userId: int
+    userId: str  # Firebase UID
 
 class TeachMeReq(BaseModel):
     questionId: str
@@ -53,21 +84,21 @@ class TeachMeReq(BaseModel):
     userAnswer: Optional[str] = ""
 
 class SaveInterviewReq(BaseModel):
-    userId: int
+    userId: str  # Firebase UID
     communicationScore: int
     confidenceScore: int
     relevanceScore: int
     feedback: str
 
 class StartGdReq(BaseModel):
-    userId: int
+    userId: str  # Firebase UID
     topic: str
     difficulty: str
     duration: int = 600  # Default 10 minutes
 
 class GdMessageReq(BaseModel):
     sessionId: str
-    userId: int
+    userId: str  # Firebase UID
     message: str
     action: Optional[str] = "speak"  # speak | pause | conclude
 
@@ -87,21 +118,32 @@ class GdMessageResp(BaseModel):
 
 class GdEndReq(BaseModel):
     sessionId: str
-    userId: int
+    userId: str  # Firebase UID
     userMessages: List[dict]
 
 class GdFeedbackReq(BaseModel):
     sessionId: str
-    userId: int
+    userId: str  # Firebase UID
 
 class SaveGdReq(BaseModel):
-    userId: int
+    userId: str  # Firebase UID
     topic: str
     duration: int
     score: int
+    # Detailed metrics (optional for backwards compatibility)
+    verbalAbility: Optional[int] = None
+    confidence: Optional[int] = None
+    interactivity: Optional[int] = None
+    argumentQuality: Optional[int] = None
+    topicRelevance: Optional[int] = None
+    leadership: Optional[int] = None
+    strengths: List[str] = Field(default_factory=list)
+    improvements: List[str] = Field(default_factory=list)
+    pauseCount: Optional[int] = None
+    pausePenalty: Optional[int] = None
 
 class SaveAptitudeReq(BaseModel):
-    userId: int
+    userId: str  # Firebase UID
     topic: str
     score: int
     totalQuestions: int
@@ -109,14 +151,14 @@ class SaveAptitudeReq(BaseModel):
     timeTaken: int
 
 class SubmitAptitudeReq(BaseModel):
-    userId: int
+    userId: str  # Firebase UID
     topic: str
     questions: List[dict]
     answers: List[Optional[int]]  # Array of selected option indices (or None for unanswered)
     timeTaken: int
 
 class SaveResumeReq(BaseModel):
-    userId: int
+    userId: str  # Firebase UID
     atsScore: int
     suggestions: List[str]
     fileName: str
@@ -152,32 +194,29 @@ resume_router = APIRouter(prefix="/resume", tags=["Resume"])
 dashboard_router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 ai_router = APIRouter(prefix="/ai", tags=["AI"])
 
-# --- AUTH ---
-@auth_router.post("/login")
-def login(req: LoginReq):
-    user = auth_service.login(req.email, req.password)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    return user
-
-@auth_router.post("/signup")
-def signup(req: SignupReq):
-    user = auth_service.signup(req.email, req.name, req.password)
-    if not user:
-        raise HTTPException(status_code=400, detail="Email already exists")
-    return user
+# NOTE: Login and signup are now handled by Firebase on the client side
+# The backend only verifies tokens
 
 # --- USERS ---
-@user_router.get("/{id}")
-def get_user(id: int):
-    user = auth_service.get_user(id)
+@user_router.get("/{uid}")
+async def get_user(uid: str, current_user: dict = Depends(get_current_user)):
+    """Get user profile (Firebase UID)"""
+    # Check if requesting own profile or admin (for now, only allow own profile)
+    if current_user.get('uid') != uid:
+        raise HTTPException(status_code=403, detail="Cannot access other user's profile")
+    
+    user = auth_service.get_user(uid)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user
 
-@user_router.put("/{id}")
-def update_user(id: int, req: UpdateUserReq):
-    user = auth_service.update_user(id, req.model_dump(exclude_unset=True))
+@user_router.put("/{uid}")
+async def update_user(uid: str, req: UpdateUserReq, current_user: dict = Depends(get_current_user)):
+    """Update user profile (Firebase UID)"""
+    if current_user.get('uid') != uid:
+        raise HTTPException(status_code=403, detail="Cannot update other user's profile")
+    
+    user = auth_service.update_user(uid, req.model_dump(exclude_unset=True))
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user
@@ -229,8 +268,20 @@ def save_interview(req: SaveInterviewReq):
     res = InterviewResult(**req.model_dump())
     return interview_service.save_result(res)
 
+@interview_router.post("/start")
+def start_interview(req: StartInterviewReq):
+    res = interview_service.start_new_session(
+        req.userId, req.interviewType, req.difficulty, req.mode, req.jobRole, req.resumeData 
+    )
+    if not res:
+        raise HTTPException(status_code=500, detail="Failed to start session")
+    return res
+
 @interview_router.get("/history/{userId}")
-def get_interview_history(userId: int):
+async def get_interview_history(userId: str, current_user: dict = Depends(get_current_user)):
+    """Get interview history (userId is Firebase UID)"""
+    if current_user.get('uid') != userId:
+        raise HTTPException(status_code=403, detail="Cannot access other user's history")
     return interview_service.get_history(userId)
 
 # --- GD ---
@@ -268,7 +319,10 @@ def save_gd(req: SaveGdReq):
     return gd_service.save_result(res)
 
 @gd_router.get("/history/{userId}")
-def get_gd_history(userId: int):
+async def get_gd_history(userId: str, current_user: dict = Depends(get_current_user)):
+    """Get GD history (userId is Firebase UID)"""
+    if current_user.get('uid') != userId:
+        raise HTTPException(status_code=403, detail="Cannot access other user's history")
     return gd_service.get_history(userId)
 
 # --- APTITUDE ---
@@ -306,16 +360,34 @@ def save_aptitude(req: SaveAptitudeReq):
     return aptitude_service.save_result(res)
 
 @aptitude_router.get("/history/{userId}")
-def get_aptitude_history(userId: int):
+async def get_aptitude_history(userId: str, current_user: dict = Depends(get_current_user)):
+    """Get aptitude history (userId is Firebase UID)"""
+    if current_user.get('uid') != userId:
+        raise HTTPException(status_code=403, detail="Cannot access other user's history")
     return aptitude_service.get_history(userId)
 
 # --- RESUME ---
 @resume_router.post("/upload")
-async def upload_resume(userId: int = Form(...), file: UploadFile = File(...)):
+async def upload_resume(userId: str = Form(...), file: UploadFile = File(...)):
     content = await file.read()
     result = resume_service.analyze_resume_content(content)
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])
+    
+    # PERSISTENCE: Save result
+    try:
+        resume_res = ResumeResult(
+            userId=userId,
+            atsScore=result.get("atsScore", 0),
+            suggestions=result.get("suggestions", []),
+            fileName=file.filename
+        )
+        resume_service.save_result(resume_res)
+        result["id"] = resume_res.id
+        print(f"💾 Saved resume analysis for {file.filename}")
+    except Exception as e:
+        print(f"❌ Failed to save resume result: {e}")
+        
     return result
 
 @resume_router.post("")
@@ -324,12 +396,60 @@ def save_resume(req: SaveResumeReq):
     return resume_service.save_result(res)
 
 @resume_router.get("/history/{userId}")
-def get_resume_history(userId: int):
+async def get_resume_history(userId: str, current_user: dict = Depends(get_current_user)):
+    """Get resume analysis history (userId is Firebase UID)"""
+    if current_user.get('uid') != userId:
+        raise HTTPException(status_code=403, detail="Cannot access other user's history")
+    return resume_service.get_history(userId)
+
+# --- DETAIL VIEW ENDPOINTS ---
+@aptitude_router.get("/result/{result_id}")
+async def get_aptitude_result_detail(result_id: str, current_user: dict = Depends(get_current_user)):
+    """Get detailed aptitude result"""
+    doc = firestore_client.collection('aptitude_results').document(result_id).get()
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Result not found")
+    result = doc.to_dict()
+    # Verify user owns this result
+    if result.get('userId') != current_user.get('uid'):
+        raise HTTPException(status_code=403, detail="Unauthorized")
+    return result
+
+@interview_router.get("/result/{result_id}")
+async def get_interview_result_detail(result_id: str, current_user: dict = Depends(get_current_user)):
+    """Get detailed interview result"""
+    doc = firestore_client.collection('interview_results').document(result_id).get()
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Result not found")
+    result = doc.to_dict()
+    if result.get('userId') != current_user.get('uid'):
+        raise HTTPException(status_code=403, detail="Unauthorized")
+    return result
+
+@gd_router.get("/result/{result_id}")
+async def get_gd_result_detail(result_id: str, current_user: dict = Depends(get_current_user)):
+    """Get detailed GD result"""
+    doc = firestore_client.collection('gd_results').document(result_id).get()
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Result not found")
+    result = doc.to_dict()
+    if result.get('userId') != current_user.get('uid'):
+        raise HTTPException(status_code=403, detail="Unauthorized")
+    return result
+
+@resume_router.get("/history/{userId}")
+async def get_resume_history(userId: str, current_user: dict = Depends(get_current_user)):
+    """Get resume history (userId is Firebase UID)"""
+    if current_user.get('uid') != userId:
+        raise HTTPException(status_code=403, detail="Cannot access other user's history")
     return resume_service.get_history(userId)
 
 # --- DASHBOARD ---
 @dashboard_router.get("/stats/{userId}")
-def get_dashboard_stats(userId: int):
+async def get_dashboard_stats(userId: str, current_user: dict = Depends(get_current_user)):
+    """Get dashboard stats (userId is Firebase UID)"""
+    if current_user.get('uid') != userId:
+        raise HTTPException(status_code=403, detail="Cannot access other user's stats")
     return dashboard_service.get_user_stats(userId)
 
 # --- AI ---

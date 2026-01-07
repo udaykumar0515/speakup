@@ -141,3 +141,5 @@ config.json
 .cache/
 .temp/
 .tmp/
+
+backend/firebase-service-account.json

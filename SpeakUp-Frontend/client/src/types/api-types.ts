@@ -1,5 +1,5 @@
 export interface StartInterviewRequest {
-  userId: number;
+  userId: string;
   interviewType: string;
   jobRole?: string;
   useResume: boolean;
@@ -17,7 +17,7 @@ export interface StartInterviewResponse {
 
 export interface AnswerRequest {
   sessionId: string;
-  userId: number;
+  userId: string;
   answer: string;
   questionNumber: number;
 }
@@ -51,7 +51,7 @@ export interface TeachMeResponse {
 // --- Group Discussion ---
 
 export interface StartGDRequest {
-  userId: number;
+  userId: string;
   topic: string;
   difficulty: "easy" | "medium" | "hard";
   duration: number; // in seconds
@@ -74,7 +74,7 @@ export interface StartGDResponse {
 
 export interface GDMessageRequest {
   sessionId: string;
-  userId: number;
+  userId: string;
   message: string;
   action?: "speak" | "pause" | "conclude" | "silence_break";
 }
@@ -96,7 +96,7 @@ export interface GDMessageResponse {
 
 export interface GDFeedbackRequest {
   sessionId: string;
-  userId: number;
+  userId: string;
 }
 
 export interface GDFeedbackResponse {
@@ -116,7 +116,7 @@ export interface GDFeedbackResponse {
 
 export interface GDEndRequest {
   sessionId: string;
-  userId: number;
+  userId: string;
   userMessages: {
     text: string;
     timestamp: string;
@@ -204,7 +204,7 @@ export interface CompletionMetrics {
 }
 
 export interface SubmitAptitudeReq {
-  userId: number;
+  userId: string;
   topic: string;
   questions: {
     id?: number;

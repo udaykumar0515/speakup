@@ -44,7 +44,7 @@ const TOOLS = [
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const { data, isLoading } = useDashboardStats(user?.id || 0);
+  const { data, isLoading } = useDashboardStats(user?.uid || "");
   const statsResponse = data;
 
   return (

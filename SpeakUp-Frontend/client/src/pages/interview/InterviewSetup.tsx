@@ -3,16 +3,18 @@ import { useLocation } from "wouter";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { FileText, UserCheck, Terminal, Upload, X, Target, GraduationCap, Award } from "lucide-react";
+import { FileText, UserCheck, Terminal, Upload, X, Target, GraduationCap, Award, Briefcase } from "lucide-react";
 
 export default function InterviewSetup() {
   const [, setLocation] = useLocation();
   const [type, setType] = useState<string>("");
   const [difficulty, setDifficulty] = useState<string>("mid");
   const [mode, setMode] = useState<string>("graded");
+  const [jobRole, setJobRole] = useState<string>("Software Engineer");
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -31,6 +33,7 @@ export default function InterviewSetup() {
       interviewType: type,
       difficulty,
       mode,
+      jobRole,
       resumeFile: resumeFile ? resumeFile.name : null,
       hasResume: !!resumeFile
     };
@@ -157,6 +160,20 @@ export default function InterviewSetup() {
                   </SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Job Role Input */}
+            <div className="space-y-2">
+              <Label>Target Job Role</Label>
+              <div className="relative">
+                <Briefcase className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input 
+                  placeholder="e.g. Product Manager, Backend Developer" 
+                  value={jobRole}
+                  onChange={(e) => setJobRole(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
             </div>
 
             {/* Practice vs Graded Mode */}

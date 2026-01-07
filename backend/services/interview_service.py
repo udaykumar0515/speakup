@@ -2,16 +2,19 @@ import os
 import json
 import requests
 import uuid
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
 from models import InterviewSession, InterviewResult
 from datetime import datetime
 from dotenv import load_dotenv
+from firebase_config import firestore_client
 
 # Load environment variables
 load_dotenv()
 
-# Global In-Memory Storage
+# Global In-Memory Storage (Sessions only - Results go to Firestore)
 INTERVIEW_SESSIONS = {}
-INTERVIEW_RESULTS = []
 
 AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
 AZURE_OPENAI_KEY = os.getenv("AZURE_OPENAI_KEY")
@@ -40,7 +43,7 @@ def get_gpt_response(messages, model=GPT_FULL_MODEL, max_tokens=1500):
         print(f"GPT Error: {e}")
         return None
 
-def start_new_session(userId: int, interviewType: str, difficulty: str, mode: str, resumeData: dict = None):
+def start_new_session(userId: int, interviewType: str, difficulty: str, mode: str, jobRole: str = "Software Engineer", resumeData: dict = None):
     """
     Start a new AI-powered interview session
     
@@ -49,12 +52,13 @@ def start_new_session(userId: int, interviewType: str, difficulty: str, mode: st
         interviewType: technical, hr, behavioral
         difficulty: junior, mid, senior
         mode: practice, graded
+        jobRole: Target job role (e.g. "Product Manager")
         resumeData: Optional resume data from Resume Analyzer
     """
     sessionId = str(uuid.uuid4())
     
     # Generate dynamic questions using GPT-4 Full
-    print(f"🎯 Generating interview questions: {interviewType} / {difficulty} level")
+    print(f"🎯 Generating interview questions: {interviewType} / {difficulty} level for {jobRole}")
     questions = generate_questions(interviewType, difficulty, resumeData)
     
     # Create session
@@ -385,6 +389,32 @@ def end_interview(sessionId: str, userId: int):
         "sessionDurationMinutes": session_duration_minutes,
         "isFullyCompleted": questions_answered >= total_questions
     }
+
+    # PERSISTENCE: Save result to Firestore
+    try:
+        metrics = result.get("metrics", {})
+        
+        # Map detailed metrics to flat structure for DB
+        interview_res = InterviewResult(
+            userId=userId,
+            communicationScore=metrics.get("communicationClarity", 0),
+            confidenceScore=metrics.get("confidence", 0),
+            relevanceScore=metrics.get("depthOfUnderstanding", 0), # Mapping Understanding -> Relevance
+            feedback=result.get("overallFeedback", "Interview completed."),
+            interviewType=session["interviewType"],
+            jobRole=session.get("jobRole", "General"),
+            questionCount=questions_answered,
+            sessionDuration=session_duration_minutes
+        )
+        
+        print(f"💾 Automatically saving interview result for session {sessionId}")
+        save_result(interview_res)
+        
+        # Add the saved ID to return value if needed
+        result["id"] = interview_res.id
+        
+    except Exception as e:
+        print(f"❌ Failed to auto-save interview result: {e}")
     
     return result
 
@@ -672,9 +702,35 @@ Provide ONLY the JSON object, no other text."""
     }
 
 def save_result(result: InterviewResult):
+    """Save interview result to Firestore"""
+    # Check if scores are all zero (indicates abandoned/empty session)
+    if result.communicationScore == 0 and result.confidenceScore == 0 and result.relevanceScore == 0:
+        return {"saved": False, "message": "Result discarded due to zero scores"}
+
     result.id = str(uuid.uuid4())
-    INTERVIEW_RESULTS.append(result)
+    
+    # Convert Pydantic model to dict
+    result_dict = result.model_dump()
+    result_dict['createdAt'] = datetime.now()
+    
+    # Save to Firestore
+    firestore_client.collection('interview_results').document(result.id).set(result_dict)
+    
     return result
 
-def get_history(userId: int):
-    return [r for r in INTERVIEW_RESULTS if r.userId == userId]
+def get_history(userId: str):
+    """Get user's interview history from Firestore"""
+    results = firestore_client.collection('interview_results')\
+        .where('userId', '==', userId)\
+        .stream()
+    
+    history = [doc.to_dict() for doc in results]
+    # Sort by createdAt in Python (descending)
+    def get_sort_key(x):
+        created = x.get('createdAt', '')
+        if hasattr(created, 'isoformat'):
+            return created.isoformat()
+        return str(created)
+        
+    history.sort(key=get_sort_key, reverse=True)
+    return history

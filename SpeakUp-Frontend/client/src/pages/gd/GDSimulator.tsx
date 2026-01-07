@@ -91,7 +91,7 @@ export default function GDSimulator() {
         
         try {
           const res = await startGD.mutateAsync({
-            userId: user?.id || 1,
+            userId: user?.uid || "",
             topic: parsed.topic,
             difficulty: parsed.difficulty,
             duration: parsed.duration || 600
@@ -199,7 +199,7 @@ export default function GDSimulator() {
       try {
           const res = await sendMessage.mutateAsync({
               sessionId,
-              userId: user?.id || 1,
+              userId: user?.uid || "",
               message: "",
               action: "silence_break"
           });
@@ -238,7 +238,7 @@ export default function GDSimulator() {
     try {
       const res = await sendMessage.mutateAsync({
         sessionId,
-        userId: user?.id || 1,
+        userId: user?.uid || "",
         message: userText,
         action: "speak"
       });
@@ -273,7 +273,7 @@ export default function GDSimulator() {
         try {
             const res = await sendMessage.mutateAsync({
                 sessionId,
-                userId: user?.id || 1,
+                userId: user?.uid || "",
                 message: "",
                 action: "pause"
             });
@@ -296,13 +296,13 @@ export default function GDSimulator() {
     try {
         const res = await endGD.mutateAsync({
             sessionId,
-            userId: user?.id || 1,
+            userId: user?.uid || "",
             userMessages: []
         });
         
         // Save result
         await createGdResult.mutateAsync({
-            userId: user?.id || 1,
+            userId: user?.uid || "",
             topic: config?.topic || "Unknown",
             score: res.overallScore,
             duration: totalDuration - timeLeft

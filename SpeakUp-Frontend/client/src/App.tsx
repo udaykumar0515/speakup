@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from "@/hooks/use-auth";
 
 import Login from "@/pages/auth/Login";
 import Signup from "@/pages/auth/Signup";
+import ForgotPassword from "@/pages/auth/ForgotPassword";
 import Dashboard from "@/pages/Dashboard";
 import AptitudePractice from "@/pages/aptitude/AptitudePractice";
 import AptitudeResults from "@/pages/aptitude/AptitudeResults";
@@ -41,6 +42,7 @@ function Router() {
       {/* Public Routes */}
       <Route path="/auth" component={Login} />
       <Route path="/auth/signup" component={Signup} />
+      <Route path="/auth/forgot-password" component={ForgotPassword} />
 
       {/* Protected Routes */}
       <Route path="/dashboard">

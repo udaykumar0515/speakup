@@ -1,55 +1,45 @@
-import uuid
-from typing import Optional, Dict
-from datetime import datetime
+from typing import Optional
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-# In-memory storage
-USERS: Dict[int, dict] = {}
-USER_ID_COUNTER = {"current": 1}
+from firebase_config import firestore_client, verify_firebase_token, get_or_create_user
+from google.cloud.firestore_v1 import SERVER_TIMESTAMP
 
-def signup(email: str, name: str, password: str = "mock") -> dict:
-    """Create a new user (mock implementation)"""
-    user_id = USER_ID_COUNTER["current"]
-    USER_ID_COUNTER["current"] += 1
+def verify_token(id_token: str) -> dict:
+    """Verify Firebase ID token"""
+    return verify_firebase_token(id_token)
+
+def get_user(uid: str) -> Optional[dict]:
+    """Get user by Firebase UID"""
+    user_ref = firestore_client.collection('users').document(uid)
+    user_doc = user_ref.get()
     
-    # Check if email already exists
-    for user in USERS.values():
-        if user["email"] == email:
-            return None
-    
-    user = {
-        "id": user_id,
-        "email": email,
-        "name": name,
-        "createdAt": datetime.now().isoformat(),
-        "age": None,
-        "gender": None,
-        "occupation": None,
-        "avatarUrl": None
-    }
-    USERS[user_id] = user
-    return user
-
-def login(email: str, password: str = "mock") -> Optional[dict]:
-    """Login user (mock implementation - always succeeds if user exists)"""
-    for user in USERS.values():
-        if user["email"] == email:
-            return user
+    if user_doc.exists:
+        return user_doc.to_dict()
     return None
 
-def get_user(user_id: int) -> Optional[dict]:
-    """Get user by ID"""
-    return USERS.get(user_id)
-
-def update_user(user_id: int, updates: dict) -> Optional[dict]:
-    """Update user profile"""
-    user = USERS.get(user_id)
-    if not user:
+def update_user(uid: str, updates: dict) -> Optional[dict]:
+    """Update user profile in Firestore"""
+    user_ref = firestore_client.collection('users').document(uid)
+    user_doc = user_ref.get()
+    
+    if not user_doc.exists:
         return None
     
-    # Update allowed fields
+    # Update allowed fields in metadata
     allowed_fields = ["name", "age", "gender", "occupation", "avatarUrl"]
+    update_data = {}
+    
     for field in allowed_fields:
         if field in updates and updates[field] is not None:
-            user[field] = updates[field]
+            if field == "name":
+                update_data["name"] = updates[field]
+            else:
+                update_data[f"metadata.{field}"] = updates[field]
     
-    return user
+    if update_data:
+        user_ref.update(update_data)
+        return get_user(uid)
+    
+    return user_doc.to_dict()

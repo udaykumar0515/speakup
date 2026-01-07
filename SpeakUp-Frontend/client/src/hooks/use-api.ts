@@ -28,29 +28,45 @@ import {
   type ResumeUploadResponse,
   type DashboardStatsResponse
 } from "../types/api-types";
+import { auth } from "@/firebase";
 
 const API_BASE_URL = "http://127.0.0.1:8000";
 
-// Helper for API calls
+// Helper for API calls with Firebase authentication
 async function apiCall<T>(url: string, options?: RequestInit): Promise<T> {
   // Prepend base URL if path starts with /api or other backend endpoints
   const fullUrl = (url.startsWith("/api") || url.startsWith("/chat") || url.startsWith("/stt") || url.startsWith("/tts") || url.startsWith("/resume"))
     ? `${API_BASE_URL}${url}`
     : url;
   
-  console.log("🔵 API Call:", { method: options?.method || "GET", url, fullUrl, body: options?.body });
+  // Get Firebase ID token if user is authenticated
+  let headers: Record<string, string> = {
+    ...(options?.headers as Record<string, string> || {})
+  };
+  
+  try {
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+      const token = await currentUser.getIdToken();
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+  } catch (error) {
+    console.warn("⚠️ Failed to get Firebase token:", error);
+  }
+  
+  console.log("🔵 API Call:", { method: options?.method || "GET", url, fullUrl, hasToken: !!headers['Authorization'] });
     
   try {
     const res = await fetch(fullUrl, {
       ...options,
-      // Removed credentials: "include" to work with backend's wildcard CORS
+      headers,
     });
     
     console.log("🟢 API Response:", { status: res.status, statusText: res.statusText, ok: res.ok });
     
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({ message: "Unknown error occurred" }));
-      throw new Error(errorData.message || res.statusText);
+      throw new Error(errorData.message || errorData.detail || res.statusText);
     }
     
     if (res.status === 204) return {} as T;
@@ -65,7 +81,7 @@ async function apiCall<T>(url: string, options?: RequestInit): Promise<T> {
 
 // --- Aptitude Hooks ---
 
-export function useAptitudeHistory(userId: number) {
+export function useAptitudeHistory(userId: string) {
   return useQuery({
     queryKey: [api.aptitude.list.path, userId],
     queryFn: () => apiCall<any[]>(buildUrl(api.aptitude.list.path, { userId })),
@@ -124,7 +140,7 @@ export function useSubmitAptitudeTest() {
 
 // --- Interview Hooks ---
 
-export function useInterviewHistory(userId: number) {
+export function useInterviewHistory(userId: string) {
   return useQuery({
     queryKey: [api.interview.list.path, userId],
     queryFn: () => apiCall<any[]>(buildUrl(api.interview.list.path, { userId })),
@@ -187,7 +203,7 @@ export function useCreateInterviewResult() {
 
 // --- Group Discussion Hooks ---
 
-export function useGdHistory(userId: number) {
+export function useGdHistory(userId: string) {
   return useQuery({
     queryKey: [api.gd.list.path, userId],
     queryFn: () => apiCall<any[]>(buildUrl(api.gd.list.path, { userId })),
@@ -260,15 +276,8 @@ export function useCreateGdResult() {
   });
 }
 
-// --- Resume Hooks ---
+// --- GD Hooks ---
 
-export function useResumeHistory(userId: number) {
-  return useQuery({
-    queryKey: [api.resume.list.path, userId],
-    queryFn: () => apiCall<any[]>(buildUrl(api.resume.list.path, { userId })),
-    enabled: !!userId,
-  });
-}
 
 export function useUploadResume() {
   return useMutation({
@@ -303,10 +312,23 @@ export function useCreateResumeResult() {
 
 // --- Dashboard Hooks ---
 
-export function useDashboardStats(userId: number) {
+export function useDashboardStats(userId: string) {
   return useQuery({
     queryKey: ["/api/dashboard/stats", userId],
     queryFn: () => apiCall<DashboardStatsResponse>(`/api/dashboard/stats/${userId}`),
+    enabled: !!userId,
+  });
+}
+
+// --- Resume Hooks ---
+
+export function useResumeHistory(userId: string) {
+  return useQuery({
+    queryKey: ["/api/resume/history", userId],
+    queryFn: async () => {
+      if (!userId) return [];
+      return await apiCall<any[]>(`/api/resume/history/${userId}`);
+    },
     enabled: !!userId,
   });
 }

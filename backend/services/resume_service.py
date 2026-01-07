@@ -3,13 +3,16 @@ import time
 import requests
 import uuid
 import json
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
 from models import ResumeResult
+from datetime import datetime
 from dotenv import load_dotenv
+from firebase_config import firestore_client
 
 # Load environment variables
 load_dotenv()
-
-RESUME_RESULTS = []
 
 # Azure credentials
 DOC_KEY = os.getenv("DOC_KEY")
@@ -174,9 +177,34 @@ Respond ONLY with valid JSON, no markdown formatting."""
         return {"error": f"GPT-4 analysis error: {str(e)}"}
 
 def save_result(result: ResumeResult):
+    """Save resume result to Firestore"""
     result.id = str(uuid.uuid4())
-    RESUME_RESULTS.append(result)
+    
+    result_dict = result.model_dump()
+    result_dict['createdAt'] = datetime.now()
+    
+    firestore_client.collection('resume_results').document(result.id).set(result_dict)
+    
     return result
 
-def get_history(userId: int):
-    return [r for r in RESUME_RESULTS if r.userId == userId]
+def get_history(userId: str):
+    """Get resume history from Firestore for a user (userId is now Firebase UID)"""
+    results = []
+    # Query without ordering to avoid composite index requirement
+    docs = firestore_client.collection('resume_results')\
+        .where('userId', '==', userId)\
+        .stream()
+    
+    for doc in docs:
+        data = doc.to_dict()
+        results.append(ResumeResult(**data))
+    
+    # Sort in Python
+    def get_sort_key(x):
+        created = x.createdAt if x.createdAt else ''
+        if hasattr(created, 'isoformat'):
+            return created.isoformat()
+        return str(created)
+        
+    results.sort(key=get_sort_key, reverse=True)
+    return results

@@ -1,17 +1,17 @@
 import { Layout } from "@/components/layout/Layout";
 import { useAuth } from "@/hooks/use-auth";
-import { useAptitudeHistory, useInterviewHistory, useGdHistory } from "@/hooks/use-api";
+import { useAptitudeHistory, useInterviewHistory, useGdHistory, useResumeHistory } from "@/hooks/use-api";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Loader2, User as UserIcon, Briefcase, Calendar, MapPin, Edit2, Check } from "lucide-react";
+import { Loader2, User as UserIcon, Briefcase, Calendar, MapPin, Edit2, Check, FileText, TrendingUp, Clock, Sparkles } from "lucide-react";
 import { format } from "date-fns";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 
 const AVATARS = [
   { id: 'm1', url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix' },
@@ -21,6 +21,233 @@ const AVATARS = [
   { id: 'f2', url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Luna' },
   { id: 'f3', url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Nala' },
 ];
+
+function ResumeDetailModal({ result }: { result: any }) {
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-start p-4 bg-muted/30 rounded-lg">
+        <div className="flex items-center gap-3">
+          <FileText className="h-8 w-8 text-blue-600" />
+          <div>
+            <p className="font-bold text-lg">{result.fileName}</p>
+            <p className="text-sm text-muted-foreground">{format(new Date(result.createdAt), 'PPp')}</p>
+          </div>
+        </div>
+        <div className="text-center">
+          <div className="text-4xl font-bold text-blue-600">{result.atsScore}</div>
+          <div className="text-xs text-muted-foreground uppercase tracking-wide">ATS Score</div>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <h4 className="font-medium flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-amber-500" />
+          AI Suggestions
+        </h4>
+        <div className="grid gap-2">
+          {result.suggestions?.map((suggestion: string, i: number) => (
+            <div key={i} className="p-3 bg-muted/20 rounded-md border text-sm">
+              {suggestion}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Detail Modal Components
+function AptitudeDetailModal({ result }: { result: any }) {
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div className="p-4 bg-muted/50 rounded-lg">
+          <p className="text-sm text-muted-foreground">Score</p>
+          <p className="text-3xl font-bold text-primary">{result.score}%</p>
+        </div>
+        <div className="p-4 bg-muted/50 rounded-lg">
+          <p className="text-sm text-muted-foreground">Performance</p>
+          <p className="text-xl font-semibold">{result.performanceLevel || "N/A"}</p>
+        </div>
+      </div>
+      
+      <div className="grid grid-cols-3 gap-3">
+        <div className="p-3 bg-green-50 dark:bg-green-950 rounded-lg text-center">
+          <p className="text-2xl font-bold text-green-600">{result.correctAnswers || 0}</p>
+          <p className="text-xs text-muted-foreground">Correct</p>
+        </div>
+        <div className="p-3 bg-red-50 dark:bg-red-950 rounded-lg text-center">
+          <p className="text-2xl font-bold text-red-600">{result.incorrectAnswers || 0}</p>
+          <p className="text-xs text-muted-foreground">Incorrect</p>
+        </div>
+        <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-lg text-center">
+          <p className="text-2xl font-bold">{result.unansweredQuestions || 0}</p>
+          <p className="text-xs text-muted-foreground">Unanswered</p>
+        </div>
+      </div>
+
+      <div className="p-4 bg-muted/30 rounded-lg space-y-2">
+        <div className="flex justify-between">
+          <span className="text-sm text-muted-foreground">Total Questions</span>
+          <span className="font-semibold">{result.totalQuestions}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-sm text-muted-foreground">Time Taken</span>
+          <span className="font-semibold">{Math.floor(result.timeTaken / 60)}m {result.timeTaken % 60}s</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-sm text-muted-foreground">Accuracy</span>
+          <span className="font-semibold">{result.accuracy}%</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-sm text-muted-foreground">Date</span>
+          <span className="font-semibold">{format(new Date(result.createdAt), 'PPp')}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InterviewDetailModal({ result }: { result: any }) {
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-3">
+        <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg text-center">
+          <p className="text-2xl font-bold text-blue-600">{result.communicationScore}</p>
+          <p className="text-xs text-muted-foreground">Communication</p>
+        </div>
+        <div className="p-4 bg-purple-50 dark:bg-purple-950 rounded-lg text-center">
+          <p className="text-2xl font-bold text-purple-600">{result.confidenceScore}</p>
+          <p className="text-xs text-muted-foreground">Confidence</p>
+        </div>
+        <div className="p-4 bg-green-50 dark:bg-green-950 rounded-lg text-center">
+          <p className="text-2xl font-bold text-green-600">{result.relevanceScore}</p>
+          <p className="text-xs text-muted-foreground">Relevance</p>
+        </div>
+      </div>
+
+      {result.interviewType && (
+        <div className="p-4 bg-muted/30 rounded-lg space-y-2">
+          <div className="flex justify-between">
+            <span className="text-sm text-muted-foreground">Interview Type</span>
+            <span className="font-semibold">{result.interviewType}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-sm text-muted-foreground">Job Role</span>
+            <span className="font-semibold">{result.jobRole || "General"}</span>
+          </div>
+          {result.questionCount && (
+            <div className="flex justify-between">
+              <span className="text-sm text-muted-foreground">Questions Asked</span>
+              <span className="font-semibold">{result.questionCount}</span>
+            </div>
+          )}
+          {result.sessionDuration && (
+            <div className="flex justify-between">
+              <span className="text-sm text-muted-foreground">Duration</span>
+              <span className="font-semibold">{result.sessionDuration} minutes</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="p-4 bg-muted/30 rounded-lg">
+        <p className="text-sm font-semibold mb-2">Feedback</p>
+        <p className="text-sm text-muted-foreground">{result.feedback}</p>
+      </div>
+
+      <p className="text-xs text-muted-foreground">{format(new Date(result.createdAt), 'PPp')}</p>
+    </div>
+  );
+}
+
+function GDDetailModal({ result }: { result: any }) {
+  return (
+    <div className="space-y-4">
+      <div className="p-4 bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-950 dark:to-red-950 rounded-lg">
+        <p className="text-sm text-muted-foreground">Overall Score</p>
+        <p className="text-4xl font-bold text-orange-600">{result.score}</p>
+      </div>
+
+      {(result.verbalAbility || result.confidence) && (
+        <>
+          <div className="grid grid-cols-3 gap-2">
+            {result.verbalAbility !== undefined && (
+              <div className="p-3 bg-muted/40 rounded text-center">
+                <p className="text-lg font-bold">{result.verbalAbility}</p>
+                <p className="text-[10px] text-muted-foreground">Verbal</p>
+              </div>
+            )}
+            {result.confidence !== undefined && (
+              <div className="p-3 bg-muted/40 rounded text-center">
+                <p className="text-lg font-bold">{result.confidence}</p>
+                <p className="text-[10px] text-muted-foreground">Confidence</p>
+              </div>
+            )}
+            {result.interactivity !== undefined && (
+              <div className="p-3 bg-muted/40 rounded text-center">
+                <p className="text-lg font-bold">{result.interactivity}</p>
+                <p className="text-[10px] text-muted-foreground">Interactive</p>
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            {result.argumentQuality !== undefined && (
+              <div className="p-3 bg-muted/40 rounded text-center">
+                <p className="text-lg font-bold">{result.argumentQuality}</p>
+                <p className="text-[10px] text-muted-foreground">Arguments</p>
+              </div>
+            )}
+            {result.topicRelevance !== undefined && (
+              <div className="p-3 bg-muted/40 rounded text-center">
+                <p className="text-lg font-bold">{result.topicRelevance}</p>
+                <p className="text-[10px] text-muted-foreground">Relevance</p>
+              </div>
+            )}
+            {result.leadership !== undefined && (
+              <div className="p-3 bg-muted/40 rounded text-center">
+                <p className="text-lg font-bold">{result.leadership}</p>
+                <p className="text-[10px] text-muted-foreground">Leadership</p>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {result.strengths && result.strengths.length > 0 && (
+        <div className="p-4 bg-green-50 dark:bg-green-950 rounded-lg">
+          <p className="text-sm font-semibold text-green-700 dark:text-green-300 mb-2">✓ Strengths</p>
+          <ul className="list-disc list-inside space-y-1">
+            {result.strengths.map((s: string, i: number) => (
+              <li key={i} className="text-sm text-muted-foreground">{s}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {result.improvements && result.improvements.length > 0 && (
+        <div className="p-4 bg-orange-50 dark:bg-orange-950 rounded-lg">
+          <p className="text-sm font-semibold text-orange-700 dark:text-orange-300 mb-2">→ Areas for Improvement</p>
+          <ul className="list-disc list-inside space-y-1">
+            {result.improvements.map((imp: string, i: number) => (
+              <li key={i} className="text-sm text-muted-foreground">{imp}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="flex justify-between items-center p-3 bg-muted/30 rounded">
+        <span className="text-sm">Duration: {result.duration} mins</span>
+        {result.pauseCount > 0 && (
+          <span className="text-sm text-orange-600">Pauses: {result.pauseCount} (-{result.pausePenalty} pts)</span>
+        )}
+      </div>
+
+      <p className="text-xs text-muted-foreground">{format(new Date(result.createdAt), 'PPp')}</p>
+    </div>
+  );
+}
 
 export default function Profile() {
   const { user, updateProfile } = useAuth();
@@ -33,9 +260,15 @@ export default function Profile() {
     avatarUrl: user?.avatarUrl || ''
   });
 
-  const { data: aptitudeData, isLoading: aptLoading } = useAptitudeHistory(user?.id || 0);
-  const { data: interviewData, isLoading: intLoading } = useInterviewHistory(user?.id || 0);
-  const { data: gdData, isLoading: gdLoading } = useGdHistory(user?.id || 0);
+  const { data: aptitudeData, isLoading: aptLoading } = useAptitudeHistory(user?.uid || "");
+  const { data: interviewData, isLoading: intLoading } = useInterviewHistory(user?.uid || "");
+  const { data: gdData, isLoading: gdLoading } = useGdHistory(user?.uid || "");
+  const { data: resumeData, isLoading: resumeLoading } = useResumeHistory(user?.uid || "");
+
+  const [selectedAptitude, setSelectedAptitude] = useState<any>(null);
+  const [selectedInterview, setSelectedInterview] = useState<any>(null);
+  const [selectedGD, setSelectedGD] = useState<any>(null);
+  const [selectedResume, setSelectedResume] = useState<any>(null);
 
   if (!user) return null;
 
@@ -58,68 +291,57 @@ export default function Profile() {
         <div className="bg-card p-8 rounded-2xl border shadow-sm relative group">
           <div className="absolute top-4 right-4">
             <Button 
-              variant={isEditing ? "default" : "ghost"} 
-              size="sm" 
-              onClick={() => isEditing ? handleSave() : setIsEditing(true)}
-              className="gap-2"
+              variant={isEditing ? "default" : "outline"} 
+              size="sm"
+              onClick={isEditing ? handleSave : () => setIsEditing(true)}
             >
-              {isEditing ? <Check className="w-4 h-4" /> : <Edit2 className="w-4 h-4" />}
-              {isEditing ? "Save Changes" : "Edit Profile"}
+              {isEditing ? <Check className="h-4 w-4 mr-2" /> : <Edit2 className="h-4 w-4 mr-2" />}
+              {isEditing ? "Save" : "Edit"}
             </Button>
-            {isEditing && (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => setIsEditing(false)} 
-                className="ml-2"
-              >
-                Cancel
-              </Button>
-            )}
           </div>
 
-          <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
+          <div className="flex flex-col md:flex-row gap-6 items-center md:items-start">
+            {/* Avatar Section */}
             <div className="relative">
-              <Avatar className="w-32 h-32 border-4 border-white shadow-xl">
-                <AvatarImage src={editData.avatarUrl || user.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`} />
-                <AvatarFallback>{user.name[0]}</AvatarFallback>
-              </Avatar>
-              
-              {isEditing && (
+              {isEditing ? (
                 <Dialog>
                   <DialogTrigger asChild>
-                    <Button 
-                      size="icon" 
-                      variant="secondary" 
-                      className="absolute bottom-0 right-0 rounded-full shadow-md w-10 h-10"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </Button>
+                    <div className="cursor-pointer group-hover:opacity-80 transition">
+                      <Avatar className="h-32 w-32 border-4 border-primary">
+                        <AvatarImage src={editData.avatarUrl} alt={editData.name} />
+                        <AvatarFallback><UserIcon className="h-16 w-16" /></AvatarFallback>
+                      </Avatar>
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition">
+                        <Edit2 className="h-6 w-6 text-white" />
+                      </div>
+                    </div>
                   </DialogTrigger>
-                  <DialogContent className="max-w-md">
+                  <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>Choose an Avatar</DialogTitle>
+                      <DialogTitle>Choose Avatar</DialogTitle>
                     </DialogHeader>
-                    <div className="grid grid-cols-3 gap-4 py-4">
+                    <div className="grid grid-cols-3 gap-4 p-4">
                       {AVATARS.map((avatar) => (
-                        <button
+                        <div
                           key={avatar.id}
                           onClick={() => handleAvatarSelect(avatar.url)}
-                          className={`relative rounded-xl overflow-hidden border-2 transition-all p-1 ${
-                            editData.avatarUrl === avatar.url ? 'border-primary ring-2 ring-primary/20' : 'border-transparent hover:border-muted-foreground/30'
+                          className={`cursor-pointer p-2 rounded-lg border-2 transition ${
+                            editData.avatarUrl === avatar.url ? 'border-primary' : 'border-transparent hover:border-primary/50'
                           }`}
                         >
-                          <img src={avatar.url} alt="Avatar option" className="w-full aspect-square" />
-                          {editData.avatarUrl === avatar.url && (
-                            <div className="absolute top-1 right-1 bg-primary text-white rounded-full p-0.5">
-                              <Check className="w-3 h-3" />
-                            </div>
-                          )}
-                        </button>
+                          <Avatar className="h-20 w-20 mx-auto">
+                            <AvatarImage src={avatar.url} />
+                          </Avatar>
+                        </div>
                       ))}
                     </div>
                   </DialogContent>
                 </Dialog>
+              ) : (
+                <Avatar className="h-32 w-32 border-4 border-primary">
+                  <AvatarImage src={user?.avatarUrl ?? undefined} alt={user.name} />
+                  <AvatarFallback><UserIcon className="h-16 w-16" /></AvatarFallback>
+                </Avatar>
               )}
             </div>
 
@@ -153,7 +375,7 @@ export default function Profile() {
                   <div className="space-y-2">
                     <Label>Age</Label>
                     <Input 
-                      type="number"
+                      type="number" 
                       value={editData.age} 
                       onChange={(e) => setEditData({...editData, age: e.target.value})}
                       placeholder="Age"
@@ -179,25 +401,28 @@ export default function Profile() {
                 </div>
               ) : (
                 <>
-                  <div>
-                    <h1 className="text-4xl font-bold font-display tracking-tight">{user.name}</h1>
-                    <p className="text-xl text-muted-foreground">{user.email}</p>
+                  <h1 className="text-3xl font-bold">{user.name}</h1>
+                  <div className="flex flex-wrap gap-4 justify-center md:justify-start text-muted-foreground">
+                    {user.occupation && (
+                      <div className="flex items-center gap-2">
+                        <Briefcase className="h-4 w-4" />
+                        <span className="capitalize">{user.occupation}</span>
+                      </div>
+                    )}
+                    {user.age && (
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4" />
+                        <span>{user.age} years old</span>
+                      </div>
+                    )}
+                    {user.gender && (
+                      <div className="flex items-center gap-2">
+                        <UserIcon className="h-4 w-4" />
+                        <span className="capitalize">{user.gender}</span>
+                      </div>
+                    )}
                   </div>
-                  
-                  <div className="flex flex-wrap gap-4 justify-center md:justify-start">
-                    <div className="flex items-center gap-2 px-4 py-2 bg-secondary/50 rounded-lg text-sm font-medium">
-                      <Briefcase className="w-4 h-4 text-muted-foreground" />
-                      {user.occupation || 'Occupation not set'}
-                    </div>
-                    <div className="flex items-center gap-2 px-4 py-2 bg-secondary/50 rounded-lg text-sm font-medium">
-                      <Calendar className="w-4 h-4 text-muted-foreground" />
-                      {user.age ? `${user.age} years old` : 'Age not set'}
-                    </div>
-                    <div className="flex items-center gap-2 px-4 py-2 bg-secondary/50 rounded-lg text-sm font-medium capitalize">
-                      <UserIcon className="w-4 h-4 text-muted-foreground" />
-                      {user.gender || 'Gender not set'}
-                    </div>
-                  </div>
+                  <p className="text-sm text-muted-foreground">{user.email}</p>
                 </>
               )}
             </div>
@@ -207,11 +432,13 @@ export default function Profile() {
         {/* History Tabs */}
         <Tabs defaultValue="aptitude" className="w-full">
           <TabsList className="bg-muted p-1 rounded-xl">
-            <TabsTrigger value="aptitude" className="rounded-lg">Aptitude History</TabsTrigger>
-            <TabsTrigger value="interview" className="rounded-lg">Interview History</TabsTrigger>
-            <TabsTrigger value="gd" className="rounded-lg">GD History</TabsTrigger>
+            <TabsTrigger value="aptitude" className="rounded-lg">Aptitude</TabsTrigger>
+            <TabsTrigger value="interview" className="rounded-lg">Interviews</TabsTrigger>
+            <TabsTrigger value="gd" className="rounded-lg">GD Sessions</TabsTrigger>
+            <TabsTrigger value="resume" className="rounded-lg">Resume Analysis</TabsTrigger>
           </TabsList>
 
+          {/* Aptitude Tab */}
           <TabsContent value="aptitude">
             <Card>
               <CardHeader>
@@ -225,7 +452,11 @@ export default function Profile() {
                 ) : (
                   <div className="space-y-4">
                     {aptitudeData?.map((item) => (
-                      <div key={item.id} className="flex justify-between items-center p-4 bg-muted/30 rounded-lg">
+                      <div 
+                        key={item.id} 
+                        onClick={() => setSelectedAptitude(item)}
+                        className="flex justify-between items-center p-4 bg-muted/30 rounded-lg hover:bg-muted/50 cursor-pointer transition-all hover:scale-[1.02]"
+                      >
                         <div>
                           <p className="font-bold capitalize">{item.topic}</p>
                           <p className="text-xs text-muted-foreground">{format(new Date(item.createdAt!), 'PPp')}</p>
@@ -241,7 +472,8 @@ export default function Profile() {
               </CardContent>
             </Card>
           </TabsContent>
-          
+
+          {/* Interview Tab */}
           <TabsContent value="interview">
             <Card>
               <CardHeader>
@@ -255,9 +487,13 @@ export default function Profile() {
                 ) : (
                   <div className="space-y-4">
                     {interviewData?.map((item) => (
-                      <div key={item.id} className="flex justify-between items-center p-4 bg-muted/30 rounded-lg">
+                      <div 
+                        key={item.id}
+                        onClick={() => setSelectedInterview(item)}
+                        className="flex justify-between items-center p-4 bg-muted/30 rounded-lg hover:bg-muted/50 cursor-pointer transition-all hover:scale-[1.02]"
+                      >
                         <div>
-                          <p className="font-bold">Mock Interview</p>
+                          <p className="font-bold">{item.interviewType || "Mock Interview"}</p>
                           <p className="text-xs text-muted-foreground">{format(new Date(item.createdAt!), 'PPp')}</p>
                         </div>
                         <div className="flex gap-4 text-center">
@@ -269,6 +505,10 @@ export default function Profile() {
                             <p className="font-bold">{item.confidenceScore}</p>
                             <p className="text-[10px] text-muted-foreground">Conf.</p>
                           </div>
+                          <div>
+                            <p className="font-bold">{item.relevanceScore}</p>
+                            <p className="text-[10px] text-muted-foreground">Rel.</p>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -278,6 +518,7 @@ export default function Profile() {
             </Card>
           </TabsContent>
 
+          {/* GD Tab */}
           <TabsContent value="gd">
             <Card>
               <CardHeader>
@@ -291,7 +532,11 @@ export default function Profile() {
                 ) : (
                   <div className="space-y-4">
                     {gdData?.map((item) => (
-                      <div key={item.id} className="flex justify-between items-center p-4 bg-muted/30 rounded-lg">
+                      <div 
+                        key={item.id}
+                        onClick={() => setSelectedGD(item)}
+                        className="flex justify-between items-center p-4 bg-muted/30 rounded-lg hover:bg-muted/50 cursor-pointer transition-all hover:scale-[1.02]"
+                      >
                         <div>
                           <p className="font-bold">{item.topic}</p>
                           <p className="text-xs text-muted-foreground">{format(new Date(item.createdAt!), 'PPp')}</p>
@@ -307,7 +552,101 @@ export default function Profile() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Resume Tab */}
+          <TabsContent value="resume">
+            <Card>
+              <CardHeader>
+                <CardTitle>Resume Analysis History</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {resumeLoading ? (
+                  <Loader2 className="animate-spin" />
+                ) : resumeData?.length === 0 ? (
+                  <p className="text-muted-foreground">No resume analyses yet.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {resumeData?.map((item) => (
+                      <div 
+                        key={item.id}
+                        onClick={() => setSelectedResume(item)}
+                        className="p-4 bg-muted/30 rounded-lg space-y-3 cursor-pointer hover:bg-muted/50 transition-all hover:scale-[1.02]"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-5 w-5 text-blue-600" />
+                            <div>
+                              <p className="font-semibold">{item.fileName}</p>
+                              <p className="text-xs text-muted-foreground">{format(new Date(item.createdAt!), 'PPp')}</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-2xl font-bold text-blue-600">{item.atsScore}</p>
+                            <p className="text-xs text-muted-foreground">ATS Score</p>
+                          </div>
+                        </div>
+                        {item.suggestions && item.suggestions.length > 0 && (
+                          <div className="pl-7 space-y-1">
+                            <p className="text-sm font-semibold">Suggestions:</p>
+                            <ul className="list-disc list-inside space-y-1">
+                              {item.suggestions.slice(0, 3).map((s: string, i: number) => (
+                                <li key={i} className="text-xs text-muted-foreground">{s}</li>
+                              ))}
+                            </ul>
+                            {item.suggestions.length > 3 && (
+                              <p className="text-xs text-muted-foreground italic">+{item.suggestions.length - 3} more...</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
+
+        {/* Detail Modals */}
+        <Dialog open={!!selectedAptitude} onOpenChange={() => setSelectedAptitude(null)}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="capitalize">{selectedAptitude?.topic} Test</DialogTitle>
+              <DialogDescription>Detailed breakdown of your aptitude test performance</DialogDescription>
+            </DialogHeader>
+            {selectedAptitude && <AptitudeDetailModal result={selectedAptitude} />}
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={!!selectedInterview} onOpenChange={() => setSelectedInterview(null)}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{selectedInterview?.interviewType || "Mock Interview"}</DialogTitle>
+              <DialogDescription>Detailed analysis of your interview performance</DialogDescription>
+            </DialogHeader>
+            {selectedInterview && <InterviewDetailModal result={selectedInterview} />}
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={!!selectedGD} onOpenChange={() => setSelectedGD(null)}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{selectedGD?.topic}</DialogTitle>
+              <DialogDescription>Comprehensive GD performance analysis</DialogDescription>
+            </DialogHeader>
+            {selectedGD && <GDDetailModal result={selectedGD} />}
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={!!selectedResume} onOpenChange={() => setSelectedResume(null)}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Resume Analysis</DialogTitle>
+              <DialogDescription>Detailed ATS analysis and suggestions</DialogDescription>
+            </DialogHeader>
+            {selectedResume && <ResumeDetailModal result={selectedResume} />}
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );

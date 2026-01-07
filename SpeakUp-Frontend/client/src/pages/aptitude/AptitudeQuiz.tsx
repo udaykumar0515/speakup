@@ -62,7 +62,7 @@ export default function AptitudeQuiz({ topic, questionCount, aiPowered, onExit }
       const timeTaken = Math.round((Date.now() - startTime) / 1000);
 
       const result = await submitTest.mutateAsync({
-        userId: user.id,
+        userId: user?.uid || "",
         topic,
         questions: questions,
         answers: answersPayload,

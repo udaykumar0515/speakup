@@ -1,60 +1,97 @@
-from services.interview_service import INTERVIEW_RESULTS
-from services.gd_service import GD_RESULTS
-from services.aptitude_service import APTITUDE_RESULTS
-from services.resume_service import RESUME_RESULTS
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-def get_user_stats(userId: int):
-    # Filter by userId
-    interviews = [r for r in INTERVIEW_RESULTS if r.userId == userId]
-    gds = [r for r in GD_RESULTS if r.userId == userId]
-    aptitudes = [r for r in APTITUDE_RESULTS if r.userId == userId]
-    resumes = [r for r in RESUME_RESULTS if r.userId == userId]
+from firebase_config import firestore_client
 
-    # Calculate Avgs
+def get_user_stats(userId: str):
+    """Get user stats from Firestore (userId is now Firebase UID)"""
+    
+    # Query all collections for this user
+    interview_docs = list(firestore_client.collection('interview_results').where('userId', '==', userId).stream())
+    gd_docs = list(firestore_client.collection('gd_results').where('userId', '==', userId).stream())
+    aptitude_docs = list(firestore_client.collection('aptitude_results').where('userId', '==', userId).stream())
+    resume_docs = list(firestore_client.collection('resume_results').where('userId', '==', userId).stream())
+    
+    # Calculate averages
     avg_int = 0
-    if interviews:
-        total = sum([(i.communicationScore + i.confidenceScore + i.relevanceScore)/3 for i in interviews])
-        avg_int = int(total / len(interviews))
-        
+    if interview_docs:
+        total = sum([(doc.to_dict().get('communicationScore', 0) + 
+                      doc.to_dict().get('confidenceScore', 0) + 
+                      doc.to_dict().get('relevanceScore', 0)) / 3 for doc in interview_docs])
+        avg_int = int(total / len(interview_docs))
+    
     avg_gd = 0
-    if gds:
-        avg_gd = int(sum([g.score for g in gds]) / len(gds))
-        
+    if gd_docs:
+        avg_gd = int(sum([doc.to_dict().get('score', 0) for doc in gd_docs]) / len(gd_docs))
+    
     avg_apt = 0
-    if aptitudes:
-        avg_apt = int(sum([a.score for a in aptitudes]) / len(aptitudes))
-
+    if aptitude_docs:
+        avg_apt = int(sum([doc.to_dict().get('score', 0) for doc in aptitude_docs]) / len(aptitude_docs))
+    
     # Recent Activity
     activity = []
-    for x in interviews:
-        sc = int((x.communicationScore + x.confidenceScore + x.relevanceScore)/3)
-        activity.append({"type": "interview", "date": x.createdAt, "score": sc, "description": "Mock Interview"})
-        
-    for x in gds:
-        activity.append({"type": "gd", "date": x.createdAt, "score": x.score, "description": f"GD: {x.topic}"})
-        
-    for x in aptitudes:
-        activity.append({"type": "aptitude", "date": x.createdAt, "score": x.score, "description": f"Aptitude: {x.topic}"})
-        
-    for x in resumes:
-        activity.append({"type": "resume", "date": x.createdAt, "score": x.atsScore, "description": "Resume Analysis"})
-
-    # Sort
-    activity.sort(key=lambda x: x['date'], reverse=True)
     
-    # Format Dates
+    for doc in interview_docs:
+        data = doc.to_dict()
+        sc = int((data.get('communicationScore', 0) + data.get('confidenceScore', 0) + data.get('relevanceScore', 0)) / 3)
+        activity.append({
+            "type": "interview", 
+            "date": data.get('createdAt'), 
+            "score": sc, 
+            "description": "Mock Interview"
+        })
+    
+    for doc in gd_docs:
+        data = doc.to_dict()
+        activity.append({
+            "type": "gd", 
+            "date": data.get('createdAt'), 
+            "score": data.get('score', 0), 
+            "description": f"GD: {data.get('topic', 'Unknown')}"
+        })
+    
+    for doc in aptitude_docs:
+        data = doc.to_dict()
+        activity.append({
+            "type": "aptitude", 
+            "date": data.get('createdAt'), 
+            "score": data.get('score', 0), 
+            "description": f"Aptitude: {data.get('topic', 'Unknown')}"
+        })
+    
+    for doc in resume_docs:
+        data = doc.to_dict()
+        activity.append({
+            "type": "resume", 
+            "date": data.get('createdAt'), 
+            "score": data.get('atsScore', 0), 
+            "description": "Resume Analysis"
+        })
+    
+    # Sort by date
+    activity.sort(key=lambda x: x['date'] if x['date'] else '', reverse=True)
+    
+    # Format dates and get top 5
     final_activity = []
     for item in activity[:5]:
-        item['date'] = item['date'].isoformat()
+        if hasattr(item['date'], 'isoformat'):
+            item['date'] = item['date'].isoformat()
+        elif item['date']:
+            item['date'] = str(item['date'])
         final_activity.append(item)
-
+    
+    # Get user info from Firestore
+    user_doc = firestore_client.collection('users').document(userId).get()
+    user_data = user_doc.to_dict() if user_doc.exists else {"name": "User", "email": "user@example.com"}
+    
     return {
-        "user": {"name": "User", "email": "user@example.com"},
+        "user": {"name": user_data.get("name", "User"), "email": user_data.get("email", "user@example.com")},
         "stats": {
-            "totalInterviews": len(interviews),
-            "totalGdSessions": len(gds),
-            "totalAptitudeTests": len(aptitudes),
-            "totalResumesAnalyzed": len(resumes),
+            "totalInterviews": len(interview_docs),
+            "totalGdSessions": len(gd_docs),
+            "totalAptitudeTests": len(aptitude_docs),
+            "totalResumesAnalyzed": len(resume_docs),
             "averageInterviewScore": avg_int,
             "averageGdScore": avg_gd,
             "averageAptitudeScore": avg_apt

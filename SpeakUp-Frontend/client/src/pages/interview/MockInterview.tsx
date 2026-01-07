@@ -52,7 +52,7 @@ export default function MockInterview() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              userId: user?.id || 1,
+              userId: user?.uid || "",
               interviewType: parsed.interviewType,
               difficulty: parsed.difficulty,
               mode: parsed.mode,
@@ -117,7 +117,7 @@ export default function MockInterview() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sessionId,
-          userId: user?.id || 1,
+          userId: user?.uid || "",
           message: "",
           action: "answer"
         })
@@ -153,7 +153,7 @@ export default function MockInterview() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sessionId,
-          userId: user?.id || 1,
+          userId: user?.uid || "",
           message: greetingMsg,
           action: "greet"
         })
@@ -190,7 +190,7 @@ export default function MockInterview() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sessionId,
-          userId: user?.id || 1,
+          userId: user?.uid || "",
           message: userMsg,
           action: "answer"
         })
@@ -228,7 +228,7 @@ export default function MockInterview() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sessionId,
-          userId: user?.id || 1
+          userId: user?.uid || ""
         })
       });
 

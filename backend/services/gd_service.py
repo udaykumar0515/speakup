@@ -4,16 +4,20 @@ import uuid
 import random
 import re
 import requests
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
 from models import GdSession, GdResult
 from datetime import datetime
 from dotenv import load_dotenv
 from typing import Dict, List, Optional
+from firebase_config import firestore_client
 
 # Load environment variables
 load_dotenv()
 
+# Sessions in memory, Results in Firestore
 GD_SESSIONS = {}
-GD_RESULTS = []
 
 AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
 AZURE_OPENAI_KEY = os.getenv("AZURE_OPENAI_KEY")
@@ -590,13 +594,73 @@ def generate_gd_feedback(sessionId: str, userId: int):
     }
 
 def generate_gd_end_summary(sessionId: str, userId: int, userMessages: list):
-    """Generate final summary using comprehensive scoring"""
-    return generate_comprehensive_score(sessionId, userId)
+    """Generate final summary using comprehensive scoring and save to DB"""
+    scores = generate_comprehensive_score(sessionId, userId)
+    if not scores:
+        return None
+        
+    # PERSISTENCE: Save to Firestore
+    try:
+        session_state = GD_SESSIONS.get(sessionId)
+        topic = session_state.model.topic if session_state else "Unknown Topic"
+        
+        # completionMetrics is inside scores from generate_comprehensive_score
+        duration_mins = scores.get("completionMetrics", {}).get("sessionDurationMinutes", 10)
+        
+        gd_res = GdResult(
+            userId=userId,
+            topic=topic,
+            duration=duration_mins,
+            score=scores.get("overallScore", 0),
+            verbalAbility=scores.get("verbalAbility", 0),
+            confidence=scores.get("confidence", 0),
+            interactivity=scores.get("interactivity", 0),
+            argumentQuality=scores.get("argumentQuality", 0),
+            topicRelevance=scores.get("topicRelevance", 0),
+            leadership=scores.get("leadership", 0),
+            strengths=scores.get("strengths", []),
+            improvements=scores.get("improvements", []),
+            pauseCount=scores.get("pauseCount", 0),
+            pausePenalty=scores.get("pausePenalty", 0)
+        )
+        
+        print(f"💾 Automatically saving GD result for session {sessionId}")
+        save_result(gd_res)
+        
+        # Add ID to return value
+        scores["id"] = gd_res.id
+        
+    except Exception as e:
+        print(f"❌ Failed to auto-save GD result: {e}")
+        
+    return scores
 
 def save_result(result: GdResult):
+    """Save GD result to Firestore"""
     result.id = str(uuid.uuid4())
-    GD_RESULTS.append(result)
+    
+    # Convert to dict
+    result_dict = result.model_dump()
+    result_dict['createdAt'] = datetime.now()
+    
+    # Save to Firestore
+    firestore_client.collection('gd_results').document(result.id).set(result_dict)
+    
     return result
 
-def get_history(userId: int):
-    return [r for r in GD_RESULTS if r.userId == userId]
+def get_history(userId: str):
+    """Get user's GD history from Firestore"""
+    results = firestore_client.collection('gd_results')\
+        .where('userId', '==', userId)\
+        .stream()
+    
+    history = [doc.to_dict() for doc in results]
+    # Sort by createdAt in Python (descending)
+    def get_sort_key(x):
+        created = x.get('createdAt', '')
+        if hasattr(created, 'isoformat'):
+            return created.isoformat()
+        return str(created)
+        
+    history.sort(key=get_sort_key, reverse=True)
+    return history
