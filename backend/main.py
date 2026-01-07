@@ -13,7 +13,7 @@ from models import (
 )
 from services import (
     interview_service, gd_service, resume_service, 
-    aptitude_service, dashboard_service
+    aptitude_service, dashboard_service, auth_service
 )
 
 load_dotenv()
@@ -34,6 +34,8 @@ class StartInterviewReq(BaseModel):
     interviewType: str
     jobRole: Optional[str] = "General"
     resumeText: Optional[str] = ""
+    useResume: Optional[bool] = False
+    adaptiveDifficultyEnabled: Optional[bool] = False
 
 class AnswerInterviewReq(BaseModel):
     sessionId: str
@@ -58,6 +60,7 @@ class StartGdReq(BaseModel):
     userId: int
     topic: str
     difficulty: str
+    duration: Optional[int] = 600
 
 class GdMessageReq(BaseModel):
     sessionId: str
@@ -98,7 +101,25 @@ class AiChatReq(BaseModel):
     context: str
     history: Optional[List[dict]] = None
 
+class LoginReq(BaseModel):
+    email: str
+    password: Optional[str] = "mock"
+
+class SignupReq(BaseModel):
+    email: str
+    name: str
+    password: Optional[str] = "mock"
+
+class UpdateUserReq(BaseModel):
+    name: Optional[str] = None
+    age: Optional[int] = None
+    gender: Optional[str] = None
+    occupation: Optional[str] = None
+    avatarUrl: Optional[str] = None
+
 # ---------- ROUTERS ----------
+auth_router = APIRouter(prefix="/auth", tags=["Auth"])
+user_router = APIRouter(prefix="/users", tags=["Users"])
 interview_router = APIRouter(prefix="/interview", tags=["Interview"])
 gd_router = APIRouter(prefix="/gd", tags=["Gd"])
 aptitude_router = APIRouter(prefix="/aptitude", tags=["Aptitude"])
@@ -106,18 +127,57 @@ resume_router = APIRouter(prefix="/resume", tags=["Resume"])
 dashboard_router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 ai_router = APIRouter(prefix="/ai", tags=["AI"])
 
+# --- AUTH ---
+@auth_router.post("/login")
+def login(req: LoginReq):
+    user = auth_service.login(req.email, req.password)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+@auth_router.post("/signup")
+def signup(req: SignupReq):
+    user = auth_service.signup(req.email, req.name, req.password)
+    if not user:
+        raise HTTPException(status_code=400, detail="Email already exists")
+    return user
+
+# --- USERS ---
+@user_router.get("/{id}")
+def get_user(id: int):
+    user = auth_service.get_user(id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+@user_router.put("/{id}")
+def update_user(id: int, req: UpdateUserReq):
+    user = auth_service.update_user(id, req.model_dump(exclude_unset=True))
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
 # --- INTERVIEW ---
 @interview_router.post("/start")
 def start_interview(req: StartInterviewReq):
-    return interview_service.start_new_session(req.userId, req.interviewType, req.jobRole, req.resumeText)
+    result = interview_service.start_new_session(req.userId, req.interviewType, req.jobRole, req.resumeText)
+    if not result:
+        raise HTTPException(status_code=500, detail="Failed to start interview session")
+    return result
 
 @interview_router.post("/answer")
 def answer_interview(req: AnswerInterviewReq):
-    return interview_service.submit_answer(req.sessionId, req.answer)
+    result = interview_service.submit_answer(req.sessionId, req.answer)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return result
 
 @interview_router.post("/teach-me")
 def teach_me(req: TeachMeReq):
-    return interview_service.get_teach_me(req.sessionId, req.questionNumber, req.question, req.userAnswer)
+    result = interview_service.get_teach_me(req.sessionId, req.questionNumber, req.question, req.userAnswer)
+    if not result:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return result
 
 @interview_router.post("")
 def save_interview(req: SaveInterviewReq):
@@ -132,27 +192,31 @@ def get_interview_history(userId: int):
 # --- GD ---
 @gd_router.post("/start")
 def start_gd(req: StartGdReq):
-    return gd_service.start_gd_session(req.userId, req.topic, req.difficulty)
+    result = gd_service.start_gd_session(req.userId, req.topic, req.difficulty)
+    if not result:
+        raise HTTPException(status_code=500, detail="Failed to start GD session")
+    return result
 
 @gd_router.post("/message")
 def gd_message(req: GdMessageReq):
-    return gd_service.process_message(req.sessionId, req.userId, req.message)
+    result = gd_service.process_message(req.sessionId, req.userId, req.message)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return result
 
 @gd_router.post("/feedback")
 def gd_feedback(req: GdFeedbackReq):
-    return {"feedback": "Good points, try to speak more clearly.", "participationScore": 75, "communicationQuality": 80}
+    result = gd_service.generate_gd_feedback(req.sessionId, req.userId)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return result
 
 @gd_router.post("/end")
 def gd_end(req: GdEndReq):
-    return {
-        "score": 85,
-        "participationRate": 50,
-        "communicationScore": 80,
-        "initiativeScore": 70,
-        "feedback": "Well done.",
-        "strengths": ["Logic", "Confidence"],
-        "improvements": ["Listening"]
-    }
+    result = gd_service.generate_gd_end_summary(req.sessionId, req.userId, req.userMessages)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return result
 
 @gd_router.post("")
 def save_gd(req: SaveGdReq):
@@ -165,8 +229,18 @@ def get_gd_history(userId: int):
 
 # --- APTITUDE ---
 @aptitude_router.get("/questions/{topic}")
-def get_aptitude_questions(topic: str):
-    return {"topic": topic, "questions": aptitude_service.get_questions(topic)}
+def get_aptitude_questions(topic: str, count: int = 20, ai_powered: bool = False):
+    """
+    Get aptitude questions
+    - Regular mode: returns 'count' random questions (15-30) with shuffled options
+    - AI mode: generates 3 hard questions via GPT-4.0 Mini
+    """
+    if ai_powered:
+        questions = aptitude_service.get_ai_powered_questions(topic)
+    else:
+        questions = aptitude_service.get_random_questions(topic, count)
+    
+    return {"topic": topic, "questions": questions}
 
 @aptitude_router.post("")
 def save_aptitude(req: SaveAptitudeReq):
@@ -181,7 +255,10 @@ def get_aptitude_history(userId: int):
 @resume_router.post("/upload")
 async def upload_resume(userId: int = Form(...), file: UploadFile = File(...)):
     content = await file.read()
-    return resume_service.analyze_resume_content(content)
+    result = resume_service.analyze_resume_content(content)
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=result["error"])
+    return result
 
 @resume_router.post("")
 def save_resume(req: SaveResumeReq):
@@ -203,6 +280,8 @@ def ai_chat(req: AiChatReq):
     return {"response": f"AI Response to: {req.message}"}
 
 # REGISTER ROUTERS
+app.include_router(auth_router, prefix="/api")
+app.include_router(user_router, prefix="/api")
 app.include_router(interview_router, prefix="/api")
 app.include_router(gd_router, prefix="/api")
 app.include_router(aptitude_router, prefix="/api")
@@ -225,19 +304,25 @@ DOC_ENDPOINT = os.getenv("DOC_ENDPOINT")
 def root():
     return {"status": "SpeakUp Python Backend Running 🚀 (Stateless Mode)"}
 
+class SimpleChatReq(BaseModel):
+    message: str
+
+class TtsReq(BaseModel):
+    text: str
+
 @app.post("/chat-mini")
-async def chat_mini(message: str = Form(...)):
+async def chat_mini(req: SimpleChatReq):
     url = f"{AZURE_OPENAI_ENDPOINT}/openai/v1/chat/completions"
     headers = {"api-key": AZURE_OPENAI_KEY, "Content-Type": "application/json"}
-    body = {"model": GPT_MINI_MODEL, "messages": [{"role": "user", "content": message}]}
+    body = {"model": GPT_MINI_MODEL, "messages": [{"role": "user", "content": req.message}]}
     r = requests.post(url, headers=headers, json=body)
     return r.json()
 
 @app.post("/chat-full")
-async def chat_full(message: str = Form(...)):
+async def chat_full(req: SimpleChatReq):
     url = f"{AZURE_OPENAI_ENDPOINT}/openai/v1/chat/completions"
     headers = {"api-key": AZURE_OPENAI_KEY, "Content-Type": "application/json"}
-    body = {"model": GPT_FULL_MODEL, "messages": [{"role": "user", "content": message}]}
+    body = {"model": GPT_FULL_MODEL, "messages": [{"role": "user", "content": req.message}]}
     r = requests.post(url, headers=headers, json=body)
     return r.json()
 
@@ -259,14 +344,14 @@ async def speech_to_text(audio: UploadFile = File(...)):
 from io import BytesIO
 
 @app.post("/tts")
-async def text_to_speech(text: str = Form(...)):
+async def text_to_speech(req: TtsReq):
     url = f"https://{SPEECH_REGION}.tts.speech.microsoft.com/cognitiveservices/v1"
     headers = {
         "Ocp-Apim-Subscription-Key": SPEECH_KEY,
         "Content-Type": "application/ssml+xml",
         "X-Microsoft-OutputFormat": "audio-16khz-32kbitrate-mono-mp3"
     }
-    ssml = f"<speak version='1.0' xml:lang='en-US'><voice xml:lang='en-US' name='en-US-JennyNeural'>{text}</voice></speak>"
+    ssml = f"<speak version='1.0' xml:lang='en-US'><voice xml:lang='en-US' name='en-US-JennyNeural'>{req.text}</voice></speak>"
     resp = requests.post(url, headers=headers, data=ssml.encode("utf-8"))
     return StreamingResponse(BytesIO(resp.content), media_type="audio/mpeg")
 
