@@ -9,8 +9,10 @@ import Login from "@/pages/auth/Login";
 import Signup from "@/pages/auth/Signup";
 import Dashboard from "@/pages/Dashboard";
 import AptitudePractice from "@/pages/aptitude/AptitudePractice";
+import AptitudeResults from "@/pages/aptitude/AptitudeResults";
 import InterviewSetup from "@/pages/interview/InterviewSetup";
 import MockInterview from "@/pages/interview/MockInterview";
+import InterviewResults from "@/pages/interview/InterviewResults";
 import GDSetup from "@/pages/gd/GDSetup";
 import GDSimulator from "@/pages/gd/GDSimulator";
 import ResumeAnalyzer from "@/pages/resume/ResumeAnalyzer";
@@ -48,11 +50,17 @@ function Router() {
       <Route path="/aptitude">
         <ProtectedRoute component={AptitudePractice} />
       </Route>
+      <Route path="/aptitude/results">
+        <ProtectedRoute component={AptitudeResults} />
+      </Route>
       <Route path="/interview">
         <ProtectedRoute component={InterviewSetup} />
       </Route>
       <Route path="/interview/start">
         <ProtectedRoute component={MockInterview} />
+      </Route>
+      <Route path="/interview/results">
+        <ProtectedRoute component={InterviewResults} />
       </Route>
       <Route path="/gd">
         <ProtectedRoute component={GDSetup} />

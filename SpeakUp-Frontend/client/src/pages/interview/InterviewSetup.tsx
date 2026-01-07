@@ -4,17 +4,15 @@ import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { FileText, Briefcase, UserCheck, Terminal, Upload, X, ShieldCheck } from "lucide-react";
+import { FileText, UserCheck, Terminal, Upload, X, Target, GraduationCap, Award } from "lucide-react";
 
 export default function InterviewSetup() {
   const [, setLocation] = useLocation();
   const [type, setType] = useState<string>("");
-  const [jobRole, setJobRole] = useState("");
-  const [useResume, setUseResume] = useState(false);
-  const [adaptiveDifficulty, setAdaptiveDifficulty] = useState(true);
+  const [difficulty, setDifficulty] = useState<string>("mid");
+  const [mode, setMode] = useState<string>("graded");
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -22,25 +20,21 @@ export default function InterviewSetup() {
     const file = e.target.files?.[0];
     if (file && file.type === "application/pdf") {
       setResumeFile(file);
-      setUseResume(true);
     }
   };
 
   const handleStart = () => {
     if (!type) return;
     
-    // In a real app, we'd read the file content here. 
-    // For now, we pass the flag and mock text if enabled.
+    // Store setup in sessionStorage for the interview flow
     const state = {
       interviewType: type,
-      jobRole: type === "job-role" ? jobRole : undefined,
-      resumeText: useResume ? "Mock resume content from " + (resumeFile?.name || "uploaded file") : undefined,
-      useResume,
-      adaptiveDifficultyEnabled: adaptiveDifficulty
+      difficulty,
+      mode,
+      resumeFile: resumeFile ? resumeFile.name : null,
+      hasResume: !!resumeFile
     };
 
-    // Wouter doesn't have a built-in state passing like react-router, 
-    // so we'll use sessionStorage for this local flow as a reliable placeholder.
     sessionStorage.setItem("interview_setup", JSON.stringify(state));
     setLocation("/interview/start");
   };
@@ -50,13 +44,13 @@ export default function InterviewSetup() {
       <div className="max-w-2xl mx-auto space-y-8 py-8 px-4">
         <div className="space-y-2 text-center">
           <h1 className="text-3xl font-bold tracking-tight">Mock Interview Setup</h1>
-          <p className="text-muted-foreground">Configure your session for a personalized interview experience.</p>
+          <p className="text-muted-foreground">Configure your AI-powered interview experience</p>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>Resume Upload</CardTitle>
-            <CardDescription>Upload resume for interview question relevance (Optional)</CardDescription>
+            <CardTitle>Resume Upload (Optional)</CardTitle>
+            <CardDescription>Upload your resume for personalized, resume-based questions</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {!resumeFile ? (
@@ -82,99 +76,133 @@ export default function InterviewSetup() {
                   <p className="text-sm font-medium truncate">{resumeFile.name}</p>
                   <p className="text-[10px] text-muted-foreground">{(resumeFile.size / 1024).toFixed(1)} KB</p>
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => {setResumeFile(null); setUseResume(false);}}>
+                <Button variant="ghost" size="icon" onClick={() => setResumeFile(null)}>
                   <X className="w-4 h-4" />
                 </Button>
               </div>
             )}
-
-            <div className="flex items-center space-x-2 pt-2">
-              <Checkbox 
-                id="use-resume" 
-                disabled={!resumeFile} 
-                checked={useResume} 
-                onCheckedChange={(checked) => setUseResume(!!checked)}
-              />
-              <Label htmlFor="use-resume" className={!resumeFile ? "text-muted-foreground" : ""}>
-                Use resume to generate questions
-              </Label>
-            </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
             <CardTitle>Interview Configuration</CardTitle>
+            <CardDescription>Customize interview type, difficulty, and mode</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            {/* Interview Type */}
             <div className="space-y-2">
-              <Label>Select Interview Type</Label>
+              <Label>Interview Type</Label>
               <Select onValueChange={setType} value={type}>
                 <SelectTrigger>
                   <SelectValue placeholder="Choose interview type..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="hr">
-                    <div className="flex items-center gap-2">
-                      <UserCheck className="w-4 h-4" />
-                      <span>HR Interview</span>
-                    </div>
-                  </SelectItem>
                   <SelectItem value="technical">
                     <div className="flex items-center gap-2">
                       <Terminal className="w-4 h-4" />
                       <span>Technical Interview</span>
                     </div>
                   </SelectItem>
-                  <SelectItem value="resume">
+                  <SelectItem value="hr">
                     <div className="flex items-center gap-2">
-                      <FileText className="w-4 h-4" />
-                      <span>Resume-Based Interview</span>
+                      <UserCheck className="w-4 h-4" />
+                      <span>HR Interview</span>
                     </div>
                   </SelectItem>
-                  <SelectItem value="job-role">
+                  <SelectItem value="behavioral">
                     <div className="flex items-center gap-2">
-                      <Briefcase className="w-4 h-4" />
-                      <span>Job Role Interview</span>
+                      <FileText className="w-4 h-4" />
+                      <span>Behavioral Interview</span>
                     </div>
                   </SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            {type === "job-role" && (
-              <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
-                <Label htmlFor="role">Enter Job Role</Label>
-                <Input
-                  id="role"
-                  placeholder="e.g., Data Analyst"
-                  value={jobRole}
-                  onChange={(e) => setJobRole(e.target.value)}
-                />
-              </div>
-            )}
+            {/* Difficulty Level */}
+            <div className="space-y-2">
+              <Label>Difficulty Level</Label>
+              <Select onValueChange={setDifficulty} value={difficulty}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="junior">
+                    <div className="flex items-center gap-2">
+                      <GraduationCap className="w-4 h-4" />
+                      <div className="flex flex-col items-start">
+                        <span className="font-medium">Junior Level</span>
+                        <span className="text-xs text-muted-foreground">Entry-level questions</span>
+                      </div>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="mid">
+                    <div className="flex items-center gap-2">
+                      <Target className="w-4 h-4" />
+                      <div className="flex flex-col items-start">
+                        <span className="font-medium">Mid Level</span>
+                        <span className="text-xs text-muted-foreground">Intermediate complexity</span>
+                      </div>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="senior">
+                    <div className="flex items-center gap-2">
+                      <Award className="w-4 h-4" />
+                      <div className="flex flex-col items-start">
+                        <span className="font-medium">Senior Level</span>
+                        <span className="text-xs text-muted-foreground">Advanced concepts</span>
+                      </div>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-            <div className="flex items-center space-x-2 border p-3 rounded-lg bg-muted/30">
-              <Checkbox 
-                id="adaptive" 
-                checked={adaptiveDifficulty} 
-                onCheckedChange={(checked) => setAdaptiveDifficulty(!!checked)}
-              />
-              <div className="grid gap-1.5 leading-none">
-                <Label htmlFor="adaptive" className="flex items-center gap-1.5 font-semibold">
-                  <ShieldCheck className="w-3.5 h-3.5 text-primary" />
-                  Adaptive Difficulty Progression
-                </Label>
-                <p className="text-[11px] text-muted-foreground">
-                  Questions get harder as you perform well
-                </p>
+            {/* Practice vs Graded Mode */}
+            <div className="space-y-2">
+              <Label>Interview Mode</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  className={`p-4 rounded-lg border-2 transition-all ${
+                    mode === "practice" 
+                      ? "border-primary bg-primary/5" 
+                      : "border-border hover:border-primary/50"
+                  }`}
+                  onClick={() => setMode("practice")}
+                >
+                  <div className="flex flex-col items-center gap-2 text-center">
+                    <FileText className={`w-5 h-5 ${mode === "practice" ? "text-primary" : "text-muted-foreground"}`} />
+                    <div>
+                      <p className="font-semibold text-sm">Practice Mode</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Feedback only, no scoring</p>
+                    </div>
+                  </div>
+                </button>
+                
+                <button
+                  className={`p-4 rounded-lg border-2 transition-all ${
+                    mode === "graded" 
+                      ? "border-primary bg-primary/5" 
+                      : "border-border hover:border-primary/50"
+                  }`}
+                  onClick={() => setMode("graded")}
+                >
+                  <div className="flex flex-col items-center gap-2 text-center">
+                    <Award className={`w-5 h-5 ${mode === "graded" ? "text-primary" : "text-muted-foreground"}`} />
+                    <div>
+                      <p className="font-semibold text-sm">Graded Mode</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Full scoring + feedback</p>
+                    </div>
+                  </div>
+                </button>
               </div>
             </div>
 
             <Button 
               className="w-full h-11 text-base font-semibold shadow-sm" 
               onClick={handleStart} 
-              disabled={!type || (type === "job-role" && !jobRole)}
+              disabled={!type}
             >
               Start Interview
             </Button>

@@ -108,6 +108,13 @@ class SaveAptitudeReq(BaseModel):
     accuracy: int
     timeTaken: int
 
+class SubmitAptitudeReq(BaseModel):
+    userId: int
+    topic: str
+    questions: List[dict]
+    answers: List[Optional[int]]  # Array of selected option indices (or None for unanswered)
+    timeTaken: int
+
 class SaveResumeReq(BaseModel):
     userId: int
     atsScore: int
@@ -278,6 +285,20 @@ def get_aptitude_questions(topic: str, count: int = 20, ai_powered: bool = False
         questions = aptitude_service.get_random_questions(topic, count)
     
     return {"topic": topic, "questions": questions}
+
+@aptitude_router.post("/submit")
+def submit_aptitude_test(req: SubmitAptitudeReq):
+    """
+    Submit aptitude test answers and get comprehensive results
+    """
+    result = aptitude_service.submit_test(
+        userId=req.userId,
+        topic=req.topic,
+        questions=req.questions,
+        answers=req.answers,
+        timeTaken=req.timeTaken
+    )
+    return result
 
 @aptitude_router.post("")
 def save_aptitude(req: SaveAptitudeReq):

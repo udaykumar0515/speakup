@@ -136,6 +136,7 @@ export interface GDEndResponse {
   improvements: string[];
   pauseCount: number;
   pausePenalty: number;
+  completionMetrics?: CompletionMetrics;
 }
 
 export interface AptitudeQuestionsResponse {
@@ -181,5 +182,58 @@ export interface DashboardStatsResponse {
     date: string;
     description: string;
     score?: number;
+  }[];
+}
+
+export interface CompletionMetrics {
+  completionPercentage: number;
+  isFullyCompleted: boolean;
+  
+  // Interview
+  questionsAnswered?: number;
+  totalQuestions?: number;
+  sessionDurationMinutes?: number;
+
+  // GD
+  expectedDurationMinutes?: number;
+  totalTurns?: number;
+  userTurns?: number;
+  
+  // Aptitude
+  timeTakenMinutes?: number;
+}
+
+export interface SubmitAptitudeReq {
+  userId: number;
+  topic: string;
+  questions: {
+    id?: number;
+    question: string;
+    options: string[];
+    correctAnswer: number;
+    explanation?: string;
+  }[];
+  answers: (number | null)[];
+  timeTaken: number;
+}
+
+export interface SubmitAptitudeResponse {
+  id: string;
+  topic: string;
+  score: number;
+  totalQuestions: number;
+  correctAnswers: number;
+  incorrectAnswers: number;
+  unansweredQuestions: number;
+  performanceLevel: string;
+  completionMetrics: CompletionMetrics;
+  questionBreakdown: {
+    questionNumber: number;
+    questionText: string;
+    options: string[];
+    correctAnswer: number;
+    userAnswer: number | null;
+    status: "correct" | "incorrect" | "unanswered";
+    explanation: string;
   }[];
 }

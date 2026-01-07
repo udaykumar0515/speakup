@@ -343,7 +343,7 @@ def process_answer(sessionId: str, answer: str):
 
 def end_interview(sessionId: str, userId: int):
     """
-    End interview and generate comprehensive results
+    End interview and generate comprehensive results with completion tracking
     """
     session = INTERVIEW_SESSIONS.get(sessionId)
     if not session:
@@ -351,13 +351,40 @@ def end_interview(sessionId: str, userId: int):
     
     session["isComplete"] = True
     
+    # Calculate completion metrics
+    questions_answered = len(session.get("answers", []))
+    total_questions = len(session.get("questions", []))
+    if total_questions == 0:
+        total_questions = 10 # Fallback default
+        
+    completion_percentage = round((questions_answered / total_questions) * 100)
+    
+    # Calculate session duration
+    from datetime import datetime
+    start_time = session.get("startTime")
+    if isinstance(start_time, str):
+        from dateutil import parser
+        start_time = parser.parse(start_time)
+    
+    session_duration_seconds = (datetime.now() - start_time).total_seconds() if start_time else 0
+    session_duration_minutes = round(session_duration_seconds / 60)
+    
     # Generate overall feedback and scores using GPT-4 Full
-    print("📊 Generating comprehensive interview feedback...")
+    print(f"📊 Generating comprehensive interview feedback... ({questions_answered}/{total_questions} questions, {completion_percentage}% complete)")
     
     if session["mode"] == "graded":
         result = generate_graded_results(session)
     else:  # practice mode
         result = generate_practice_results(session)
+    
+    # Add completion tracking to result
+    result["completionMetrics"] = {
+        "questionsAnswered": questions_answered,
+        "totalQuestions": total_questions,
+        "completionPercentage": completion_percentage,
+        "sessionDurationMinutes": session_duration_minutes,
+        "isFullyCompleted": questions_answered >= total_questions
+    }
     
     return result
 
@@ -365,6 +392,9 @@ def generate_graded_results(session: dict) -> dict:
     """
     Generate results with scores for graded mode
     """
+    if not session.get("answers"):
+        return get_fallback_evaluation(session, graded=True)
+
     # Build context for GPT-4
     qa_context = "\n\n".join([
         f"Q{i+1}: {ans['questionText']}\nAnswer: {ans['userAnswer']}"
@@ -448,6 +478,9 @@ def generate_practice_results(session: dict) -> dict:
     """
     Generate results with feedback only (no scores) for practice mode
     """
+    if not session.get("answers"):
+        return get_fallback_evaluation(session, graded=False)
+
     # Similar to graded but without scores
     qa_context = "\n\n".join([
         f"Q{i+1}: {ans['questionText']}\nAnswer: {ans['userAnswer']}"
@@ -519,85 +552,123 @@ JSON Response:"""
     return get_fallback_evaluation(session, graded=False)
 
 def get_fallback_evaluation(session: dict, graded: bool = True) -> dict:
-    """Fallback evaluation if AI fails"""
+    """Fallback evaluation if AI fails or no data"""
+    has_answers = len(session.get("answers", [])) > 0
+    
     base = {
-        "overallFeedback": "Good performance overall. Keep practicing to improve further.",
-        "strengths": ["Clear communication", "Good understanding of concepts"],
-        "areasForImprovement": ["Provide more specific examples", "Structure answers better"],
+        "overallFeedback": "No feedback available. Please complete the interview." if not has_answers else "Evaluation service unavailable. Please try again.",
+        "strengths": [] if not has_answers else ["Participation"],
+        "areasForImprovement": ["Complete the interview to receive evaluation."] if not has_answers else ["Retry submission"],
         "questionBreakdown": []
     }
     
-    for i, ans in enumerate(session["answers"]):
+    for i, ans in enumerate(session.get("answers", [])):
         breakdown_item = {
             "questionNumber": i + 1,
             "questionText": ans["questionText"],
             "userAnswer": ans["userAnswer"],
             "questionId": ans["questionId"],
-            "feedback": "Good attempt. Consider adding more specific details."
+            "feedback": "Feedback unavailable."
         }
         
         if graded:
-            breakdown_item["score"] = 7
+            breakdown_item["score"] = 0
         else:
-            breakdown_item["improvementTips"] = ["Add more examples", "Be more concise"]
+            breakdown_item["improvementTips"] = []
         
         base["questionBreakdown"].append(breakdown_item)
     
     if graded:
-        base["overallScore"] = 75 + session.get("greetingBonus", 0)
+        base["overallScore"] = 0 + session.get("greetingBonus", 0)
         base["metrics"] = {
-            "technicalAccuracy": 75,
-            "communicationClarity": 80,
-            "confidence": 70,
-            "depthOfUnderstanding": 75
+            "technicalAccuracy": 0,
+            "communicationClarity": 0,
+            "confidence": 0,
+            "depthOfUnderstanding": 0
         }
         base["greetingBonus"] = session.get("greetingBonus", 0)
     else:
         base["mode"] = "practice"
-        base["actionableadvice"] = ["Practice STAR method", "Prepare more examples"]
+        base["actionableadvice"] = ["Complete more questions"]
     
     return base
 
 def get_teach_me(questionId: str, questionText: str, userAnswer: str = ""):
     """
-    Use GPT-mini to explain a question in detail
+    Use GPT-mini to explain a question in detail with structured output
     """
-    prompt = f"""You are an expert interview coach explaining interview questions.
+    prompt = f"""You are an expert interview coach. Explain this interview question in a structured, easy-to-understand format.
 
 QUESTION: {questionText}
 
-TASK: Provide a comprehensive explanation to help the candidate understand and answer this question better.
+Provide your response as a JSON object with exactly these fields:
+1. "context": A brief 2-3 sentence explanation of what this question tests and why it's important
+2. "example": A single, complete example answer (not STAR format, just a natural paragraph showing how to answer well)
+3. "focusAreas": An array of exactly 3 short, actionable tips (each 10-15 words max)
 
-Include:
-1. What the question is really asking
-2. Key concepts to understand
-3. How to structure your answer
-4. An example answer framework
-5. Common mistakes to avoid
+Example format:
+{{
+  "context": "This question assesses your ability to...",
+  "example": "In my previous role, I faced a similar challenge when...",
+  "focusAreas": [
+    "Use specific examples from real experience",
+    "Highlight the positive impact of your actions",
+    "Keep your answer concise and structured"
+  ]
+}}
 
-Be encouraging, specific, and actionable."""
+Provide ONLY the JSON object, no other text."""
 
     try:
         messages = [
-            {"role": "system", "content": "You are a helpful interview coach."},
+            {"role": "system", "content": "You are a helpful interview coach who provides structured, JSON-formatted guidance."},
             {"role": "user", "content": prompt}
         ]
         
-        resp = get_gpt_response(messages, model=GPT_MINI_MODEL, max_tokens=800)
+        resp = get_gpt_response(messages, model=GPT_MINI_MODEL, max_tokens=600)
         if resp and 'choices' in resp:
-            explanation = resp['choices'][0]['message']['content'].strip()
-            return {
-                "questionId": questionId,
-                "questionText": questionText,
-                "explanation": explanation
-            }
+            content = resp['choices'][0]['message']['content'].strip()
+            
+            # Try to parse JSON response
+            try:
+                # Remove markdown code blocks if present
+                if content.startswith('```'):
+                    content = content.split('```')[1]
+                    if content.startswith('json'):
+                        content = content[4:]
+                
+                import json
+                parsed = json.loads(content)
+                
+                return {
+                    "questionId": questionId,
+                    "questionText": questionText,
+                    "context": parsed.get("context", "This question tests your problem-solving and communication skills."),
+                    "example": parsed.get("example", "Practice answering with specific examples from your experience."),
+                    "focusAreas": parsed.get("focusAreas", [
+                        "Be specific with real examples",
+                        "Show positive outcomes",
+                        "Structure your answer clearly"
+                    ])[:3]  # Ensure exactly 3
+                }
+            except:
+                # Fallback if JSON parsing fails
+                pass
+                
     except Exception as e:
         print(f"Teach me error: {e}")
     
+    # Fallback response
     return {
         "questionId": questionId,
         "questionText": questionText,
-        "explanation": "This is a good question to assess your understanding. Consider using the STAR method (Situation, Task, Action, Result) to structure your answer with specific examples from your experience."
+        "context": "This question assesses your ability to handle challenges and demonstrate your problem-solving skills in real situations.",
+        "example": "In my previous role, I encountered a similar situation where I analyzed the problem, developed a solution, implemented it successfully, and achieved positive results that improved team efficiency.",
+        "focusAreas": [
+            "Use specific examples from your experience",
+            "Highlight measurable outcomes and impact",
+            "Structure your answer clearly and concisely"
+        ]
     }
 
 def save_result(result: InterviewResult):

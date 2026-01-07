@@ -2,11 +2,12 @@ import { useState, useEffect } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
-import { useCreateAptitudeResult, useAptitudeQuestions } from "@/hooks/use-api";
+import { useSubmitAptitudeTest, useAptitudeQuestions } from "@/hooks/use-api";
 import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
 import 'react-circular-progressbar/dist/styles.css';
 import { useToast } from "@/hooks/use-toast";
+import { useLocation } from "wouter";
 
 interface Props {
   topic: string;
@@ -18,13 +19,15 @@ interface Props {
 export default function AptitudeQuiz({ topic, questionCount, aiPowered, onExit }: Props) {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<number[]>([]);
   const [isFinished, setIsFinished] = useState(false);
   const [expandedQuestion, setExpandedQuestion] = useState<number | null>(null);
+  const [startTime] = useState(Date.now());
   
-  const createResult = useCreateAptitudeResult();
+  const submitTest = useSubmitAptitudeTest();
   const { data: questionsData, isLoading, error } = useAptitudeQuestions(topic, questionCount, aiPowered);
   
   const questions = questionsData?.questions || [];
@@ -48,32 +51,32 @@ export default function AptitudeQuiz({ topic, questionCount, aiPowered, onExit }
   };
 
   const finishQuiz = async () => {
-    // Calculate Score
-    const correctCount = questions.reduce((acc, q, idx) => {
-      // API returns 'correctAnswer' (0-indexed or 1-indexed? Assuming 0 based on mock logic but usually APIs are 0-indexed for arrays)
-      // Mock had `correct: 1` which matched options array index.
-      // Let's assume API `correctAnswer` matches the index in `options`.
-      return acc + (selectedAnswers[idx] === q.correctAnswer ? 1 : 0);
-    }, 0);
-
-    const score = Math.round((correctCount / questions.length) * 100);
+    if (!user) return;
 
     try {
-      // Save to backend
-      if (user) {
-        await createResult.mutateAsync({
-          userId: user.id,
-          topic,
-          score,
-          totalQuestions: questions.length,
-          accuracy: score,
-          timeTaken: 120, // TODO: Track actual time if needed
-        });
-      }
-      setIsFinished(true);
+      // Prepare answers array (filling gaps with null)
+      const answersPayload = questions.map((_, i) => 
+        selectedAnswers[i] !== undefined ? selectedAnswers[i] : null
+      );
+      
+      const timeTaken = Math.round((Date.now() - startTime) / 1000);
+
+      const result = await submitTest.mutateAsync({
+        userId: user.id,
+        topic,
+        questions: questions,
+        answers: answersPayload,
+        timeTaken: timeTaken,
+      });
+
+      // Save result for the results page
+      sessionStorage.setItem("aptitude_results", JSON.stringify(result));
+      
+      // Navigate to results
+      setLocation("/aptitude/results");
+      
     } catch (err: any) {
-      toast({ title: "Failed to save results", description: err.message, variant: "destructive" });
-      setIsFinished(true); // Show result screen anyway
+      toast({ title: "Failed to submit test", description: err.message, variant: "destructive" });
     }
   };
 
@@ -288,7 +291,7 @@ export default function AptitudeQuiz({ topic, questionCount, aiPowered, onExit }
             disabled={selectedAnswers[currentIndex] === undefined}
           >
             {currentIndex === questions.length - 1 ? (
-              createResult.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Finish Quiz"
+              submitTest.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Finish Quiz"
             ) : "Next Question"}
           </Button>
         </div>

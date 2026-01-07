@@ -427,7 +427,7 @@ def process_message(sessionId: str, userId: int, message: str, action: str = "sp
     }
 
 def generate_comprehensive_score(sessionId: str, userId: int):
-    """Generate 6-metric scoring for GD performance"""
+    """Generate 6-metric scoring for GD performance with completion tracking"""
     session_state = GD_SESSIONS.get(sessionId)
     if not session_state:
         return None
@@ -444,6 +444,39 @@ def generate_comprehensive_score(sessionId: str, userId: int):
     
     pause_penalty = session_state.pause_count * 2
     
+    # Calculate completion metrics
+    elapsed_time = (datetime.now() - session_state.start_time).total_seconds()
+    session_duration_minutes = round(elapsed_time / 60)
+    expected_duration_minutes = session_state.duration // 60  # Convert from seconds
+    completion_percentage = min(100, round((elapsed_time / session_state.duration) * 100))
+    total_turns = sum(session_state.turn_counts.values())
+    user_turns = session_state.turn_counts.get('user', 0)
+    
+    # Handle zero participation early
+    if user_turns == 0:
+        return {
+            "verbalAbility": 0,
+            "confidence": 0,
+            "interactivity": 0,
+            "argumentQuality": 0,
+            "topicRelevance": 0,
+            "leadership": 0,
+            "overallScore": 0,
+            "feedback": "No participation recorded. Please participate in the discussion to get feedback.",
+            "strengths": [],
+            "improvements": ["Speak up in the discussion"],
+            "pauseCount": session_state.pause_count,
+            "pausePenalty": 0,
+            "completionMetrics": {
+                "sessionDurationMinutes": session_duration_minutes,
+                "expectedDurationMinutes": expected_duration_minutes,
+                "completionPercentage": completion_percentage,
+                "totalTurns": total_turns,
+                "userTurns": user_turns,
+                "isFullyCompleted": False
+            }
+        }
+    
     scoring_prompt = f"""
     Evaluate the following group discussion participant based on their performance.
     
@@ -451,8 +484,9 @@ def generate_comprehensive_score(sessionId: str, userId: int):
     Difficulty: {session_state.model.difficulty}
     
     User Statistics:
-    - Turns taken: {session_state.turn_counts.get('user', 0)}
+    - Turns taken: {user_turns}
     - Pauses detected: {session_state.pause_count} (Penalty: -{pause_penalty} points)
+    - Session duration: {session_duration_minutes}/{expected_duration_minutes} minutes ({completion_percentage}% of expected time)
     
     Transcript of Discussion:
     {all_discussion}
@@ -498,27 +532,45 @@ def generate_comprehensive_score(sessionId: str, userId: int):
                 scores["pausePenalty"] = penalty
                 scores["pauseCount"] = session_state.pause_count
             
+            # Add completion metrics
+            scores["completionMetrics"] = {
+                "sessionDurationMinutes": session_duration_minutes,
+                "expectedDurationMinutes": expected_duration_minutes,
+                "completionPercentage": completion_percentage,
+                "totalTurns": total_turns,
+                "userTurns": user_turns,
+                "isFullyCompleted": completion_percentage >= 90
+            }
+            
             return scores
         except Exception as e:
             print(f"Error parsing scores: {e}")
     
     # Fallback scoring
-    participation_rate = min(100, int((session_state.turn_counts.get("user", 0) / max(1, len(session_state.model.messages))) * 200))
-    base_score = max(0, 75 - (session_state.pause_count * 2))
+    participation_rate = 0 # Default to 0 for fallback
+    base_score = 0 # Default to 0 for fallback
     
     return {
-        "verbalAbility": 75,
-        "confidence": 70,
+        "verbalAbility": 0,
+        "confidence": 0,
         "interactivity": participation_rate,
-        "argumentQuality": 75,
-        "topicRelevance": 80,
-        "leadership": 65,
+        "argumentQuality": 0,
+        "topicRelevance": 0,
+        "leadership": 0,
         "overallScore": base_score,
-        "feedback": "Good effort. Continue practicing active listening and building on others' points.",
-        "strengths": ["Participation", "On-topic contributions"],
-        "improvements": ["Develop arguments further",  "Acknowledge others more"],
+        "feedback": "Evaluation service unavailable.",
+        "strengths": [],
+        "improvements": ["Retry session"],
         "pauseCount": session_state.pause_count,
-        "pausePenalty": session_state.pause_count * 2 if session_state.pause_count > 0 else 0
+        "pausePenalty": session_state.pause_count * 2 if session_state.pause_count > 0 else 0,
+        "completionMetrics": {
+            "sessionDurationMinutes": session_duration_minutes,
+            "expectedDurationMinutes": expected_duration_minutes,
+            "completionPercentage": completion_percentage,
+            "totalTurns": total_turns,
+            "userTurns": user_turns,
+            "isFullyCompleted": completion_percentage >= 90
+        }
     }
 
 # Keep existing functions for compatibility

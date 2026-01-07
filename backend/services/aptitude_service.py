@@ -131,6 +131,96 @@ Topic: {topic}"""
     # Fallback if AI fails
     return get_random_questions(topic, 3)
 
+def submit_test(userId: int, topic: str, questions: list, answers: list, timeTaken: int = 0):
+    """
+    Submit aptitude test answers and generate comprehensive results
+    """
+    from datetime import datetime
+    
+    # Calculate results
+    correct_count = 0
+    incorrect_count = 0
+    unanswered_count = 0
+    question_breakdown = []
+    
+    for idx, question in enumerate(questions):
+        user_answer = answers[idx] if idx < len(answers) else None
+        correct_answer = question.get("correctAnswer", 0)
+        
+        is_correct = user_answer == correct_answer if user_answer is not None else False
+        
+        if user_answer is None:
+            unanswered_count += 1
+            status = "unanswered"
+        elif is_correct:
+            correct_count += 1
+            status = "correct"
+        else:
+            incorrect_count += 1
+            status = "incorrect"
+        
+        question_breakdown.append({
+            "questionNumber": idx + 1,
+            "questionText": question.get("question", ""),
+            "options": question.get("options", []),
+            "correctAnswer": correct_answer,
+            "userAnswer": user_answer,
+            "status": status,
+            "explanation": question.get("explanation", "")
+        })
+    
+    # Calculate score
+    total_questions = len(questions)
+    score_percentage = round((correct_count / total_questions) * 100) if total_questions > 0 else 0
+    
+    # Calculate completion metrics
+    questions_answered = total_questions - unanswered_count
+    completion_percentage = round((questions_answered / total_questions) * 100) if total_questions > 0 else 0
+    
+    # Create result object
+    result = AptitudeResult(
+        id=str(uuid.uuid4()),
+        userId=userId,
+        topic=topic,
+        score=score_percentage,
+        totalQuestions=total_questions,
+        accuracy=score_percentage,
+        timeTaken=timeTaken,
+        createdAt=datetime.now().isoformat()
+    )
+    
+    # Save to storage
+    APTITUDE_RESULTS.append(result)
+    
+    # Return comprehensive results
+    return {
+        "id": result.id,
+        "topic": topic,
+        "score": score_percentage,
+        "totalQuestions": total_questions,
+        "correctAnswers": correct_count,
+        "incorrectAnswers": incorrect_count,
+        "unansweredQuestions": unanswered_count,
+        "accuracy": score_percentage,
+        "timeTaken": timeTaken,
+        "createdAt": result.createdAt,
+        "completionMetrics": {
+            "questionsAnswered": questions_answered,
+            "totalQuestions": total_questions,
+            "completionPercentage": completion_percentage,
+            "timeTakenMinutes": round(timeTaken / 60) if timeTaken > 0 else 0,
+            "isFullyCompleted": unanswered_count == 0
+        },
+        "questionBreakdown": question_breakdown,
+        "performanceLevel": (
+            "Excellent" if score_percentage >= 90 else
+            "Very Good" if score_percentage >= 75 else
+            "Good" if score_percentage >= 60 else
+            "Average" if score_percentage >= 50 else
+            "Needs Improvement"
+        )
+    }
+
 def save_result(result: AptitudeResult):
     result.id = str(uuid.uuid4())
     APTITUDE_RESULTS.append(result)
@@ -138,3 +228,4 @@ def save_result(result: AptitudeResult):
 
 def get_history(userId: int):
     return [r for r in APTITUDE_RESULTS if r.userId == userId]
+

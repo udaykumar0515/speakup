@@ -38,15 +38,43 @@ export default function GDResult({ result, onBack }: GDResultProps) {
             <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Performance Report</span>
             <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">GD Session Analysis</h1>
           </div>
-          <div className="flex gap-3">
-            <Button variant="outline" onClick={handleHome}>
-                <Home className="w-4 h-4 mr-2" /> Dashboard
-            </Button>
-            <Button onClick={handleNew}>
-                New Session <ArrowRight className="w-4 h-4 ml-2" />
-            </Button>
-          </div>
+          <Button onClick={handleHome}>
+            <Home className="w-4 h-4 mr-2" /> Back to Dashboard
+          </Button>
         </div>
+
+        {/* Completion Metrics */}
+        {result.completionMetrics && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+             <Card className="border-none shadow-sm bg-muted/30">
+               <CardContent className="pt-4 pb-4 text-center">
+                 <div className="text-2xl font-bold text-primary">{result.completionMetrics.sessionDurationMinutes}m</div>
+                 <p className="text-xs font-medium text-muted-foreground">Session Duration</p>
+               </CardContent>
+             </Card>
+             <Card className="border-none shadow-sm bg-muted/30">
+               <CardContent className="pt-4 pb-4 text-center">
+                 <div className="text-2xl font-bold text-primary">{result.completionMetrics.userTurns}/{result.completionMetrics.totalTurns}</div>
+                 <p className="text-xs font-medium text-muted-foreground">Your Turns vs Total</p>
+               </CardContent>
+             </Card>
+             <Card className="border-none shadow-sm bg-muted/30 col-span-2">
+                 <CardContent className="pt-4 pb-4 flex items-center justify-center h-full gap-6">
+                    <div className="text-center">
+                       <div className="text-2xl font-bold text-primary">{result.completionMetrics.completionPercentage}%</div>
+                       <p className="text-xs font-medium text-muted-foreground">Time Completed</p>
+                    </div>
+                    <div>
+                        {!result.completionMetrics.isFullyCompleted ? (
+                            <Badge variant="destructive">Ended Early</Badge>
+                        ) : (
+                            <Badge className="bg-green-600 hover:bg-green-700">Fully Completed</Badge>
+                        )}
+                    </div>
+                 </CardContent>
+             </Card>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
             

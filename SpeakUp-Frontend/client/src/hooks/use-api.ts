@@ -23,6 +23,8 @@ import {
   type GDEndRequest,
   type GDEndResponse,
   type AptitudeQuestionsResponse,
+  type SubmitAptitudeReq,
+  type SubmitAptitudeResponse,
   type ResumeUploadResponse,
   type DashboardStatsResponse
 } from "../types/api-types";
@@ -96,6 +98,26 @@ export function useCreateAptitudeResult() {
     },
     onError: (error: Error) => {
       toast({ title: "Failed to Save", description: error.message, variant: "destructive" });
+    }
+  });
+}
+
+export function useSubmitAptitudeTest() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: (data: SubmitAptitudeReq) =>
+      apiCall<SubmitAptitudeResponse>("/api/aptitude/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }),
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: [api.aptitude.list.path, variables.userId] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Submission Failed", description: error.message, variant: "destructive" });
     }
   });
 }
