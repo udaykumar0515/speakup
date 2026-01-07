@@ -17,7 +17,8 @@ export default function Signup() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !name) return;
-    await signup(email, name);
+    if (!email || !name || !password) return;
+    await signup(email, password, name);
   };
 
   return (
