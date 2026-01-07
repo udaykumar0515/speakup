@@ -5,11 +5,11 @@ import {
   insertInterviewResultSchema, 
   insertGdResultSchema, 
   insertResumeResultSchema,
-  users,
-  aptitudeResults,
-  interviewResults,
-  gdResults,
-  resumeResults
+  type User,
+  type AptitudeResult,
+  type InterviewResult,
+  type GdResult,
+  type ResumeResult
 } from './schema';
 
 export const errorSchemas = {
@@ -31,7 +31,7 @@ export const api = {
       method: 'GET' as const,
       path: '/api/users/:id',
       responses: {
-        200: z.custom<typeof users.$inferSelect>(),
+        200: z.custom<User>(),
         404: errorSchemas.notFound,
       },
     },
@@ -42,7 +42,7 @@ export const api = {
         age: z.coerce.number().optional(),
       }),
       responses: {
-        200: z.custom<typeof users.$inferSelect>(),
+        200: z.custom<User>(),
         404: errorSchemas.notFound,
       },
     },
@@ -52,7 +52,7 @@ export const api = {
       method: 'GET' as const,
       path: '/api/aptitude/history/:userId',
       responses: {
-        200: z.array(z.custom<typeof aptitudeResults.$inferSelect>()),
+        200: z.array(z.custom<AptitudeResult>()),
       },
     },
     create: {
@@ -60,7 +60,7 @@ export const api = {
       path: '/api/aptitude',
       input: insertAptitudeResultSchema,
       responses: {
-        201: z.custom<typeof aptitudeResults.$inferSelect>(),
+        201: z.custom<AptitudeResult>(),
         400: errorSchemas.validation,
       },
     },
@@ -80,7 +80,7 @@ export const api = {
       method: 'GET' as const,
       path: '/api/interview/history/:userId',
       responses: {
-        200: z.array(z.custom<typeof interviewResults.$inferSelect>()),
+        200: z.array(z.custom<InterviewResult>()),
       },
     },
     create: {
@@ -88,7 +88,7 @@ export const api = {
       path: '/api/interview',
       input: insertInterviewResultSchema,
       responses: {
-        201: z.custom<typeof interviewResults.$inferSelect>(),
+        201: z.custom<InterviewResult>(),
         400: errorSchemas.validation,
       },
     },
@@ -116,7 +116,7 @@ export const api = {
       method: 'GET' as const,
       path: '/api/gd/history/:userId',
       responses: {
-        200: z.array(z.custom<typeof gdResults.$inferSelect>()),
+        200: z.array(z.custom<GdResult>()),
       },
     },
     create: {
@@ -124,7 +124,7 @@ export const api = {
       path: '/api/gd',
       input: insertGdResultSchema,
       responses: {
-        201: z.custom<typeof gdResults.$inferSelect>(),
+        201: z.custom<GdResult>(),
         400: errorSchemas.validation,
       },
     },
@@ -158,7 +158,7 @@ export const api = {
       method: 'GET' as const,
       path: '/api/resume/history/:userId',
       responses: {
-        200: z.array(z.custom<typeof resumeResults.$inferSelect>()),
+        200: z.array(z.custom<ResumeResult>()),
       },
     },
     create: {
@@ -166,7 +166,7 @@ export const api = {
       path: '/api/resume',
       input: insertResumeResultSchema,
       responses: {
-        201: z.custom<typeof resumeResults.$inferSelect>(),
+        201: z.custom<ResumeResult>(),
         400: errorSchemas.validation,
       },
     },
@@ -225,6 +225,7 @@ export const api = {
     },
   },
 };
+
 
 export function buildUrl(path: string, params?: Record<string, string | number>): string {
   let url = path;
