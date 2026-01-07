@@ -595,6 +595,22 @@ def generate_gd_feedback(sessionId: str, userId: int):
 
 def generate_gd_end_summary(sessionId: str, userId: int, userMessages: list):
     """Generate final summary using comprehensive scoring and save to DB"""
+    # IDEMPOTENCY CHECK
+    session_state = GD_SESSIONS.get(sessionId)
+    if not session_state:
+        # If session is gone but we have a result logic, handle here. 
+        # For now, just return None if session memory is wiped.
+        return None
+        
+    if not session_state.model.isActive:
+        print(f"⚠️ GD Session {sessionId} in progress/completed. Waiting for result...")
+        import time
+        for _ in range(30): # Wait up to 30 seconds
+            if hasattr(session_state, 'final_result') and session_state.final_result:
+                return session_state.final_result
+            time.sleep(1)
+        return {"error": "Session completion timed out"}
+
     scores = generate_comprehensive_score(sessionId, userId)
     if not scores:
         return None
@@ -632,6 +648,12 @@ def generate_gd_end_summary(sessionId: str, userId: int, userMessages: list):
         
     except Exception as e:
         print(f"❌ Failed to auto-save GD result: {e}")
+        
+    # Cache result for idempotency
+    if session_state:
+        session_state.final_result = scores
+        # Mark as inactive to trigger the check next time
+        session_state.model.isActive = False
         
     return scores
 

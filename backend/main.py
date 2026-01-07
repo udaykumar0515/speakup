@@ -340,8 +340,29 @@ def get_aptitude_questions(topic: str, count: int = 20, ai_powered: bool = False
     
     return {"topic": topic, "questions": questions}
 
+# Global processing locks for idempotency
+APTITUDE_PROCESSING = {} # userId_topic -> timestamp
+
 @aptitude_router.post("/submit")
 def submit_aptitude_test(req: SubmitAptitudeReq):
+    # IDEMPOTENCY CHECK
+    lock_key = f"{req.userId}_{req.topic}"
+    import time
+    current_time = time.time()
+    
+    # Check if this test is currently being processed (within last 10s)
+    if lock_key in APTITUDE_PROCESSING:
+        last_process_time = APTITUDE_PROCESSING[lock_key]
+        if current_time - last_process_time < 10: # 10 second lockout
+            print(f"⚠️ Aptitude {req.topic} already submitting. Rejecting duplicate.")
+            # Unlike resume, we might want to return the previous result if we had it,
+            # but for now, preventing the double database write is the priority.
+            # Frontend should handle the error gracefully or we can return a 202.
+            raise HTTPException(status_code=429, detail="Submission already in progress.")
+            
+    # Set lock
+    APTITUDE_PROCESSING[lock_key] = current_time
+
     """
     Submit aptitude test answers and get comprehensive results
     """
@@ -367,8 +388,26 @@ async def get_aptitude_history(userId: str, current_user: dict = Depends(get_cur
     return aptitude_service.get_history(userId)
 
 # --- RESUME ---
+# Global processing locks for idempotency
+RESUME_PROCESSING = {} # userId_filename -> timestamp
+
 @resume_router.post("/upload")
 async def upload_resume(userId: str = Form(...), file: UploadFile = File(...)):
+    # IDEMPOTENCY CHECK
+    lock_key = f"{userId}_{file.filename}"
+    import time
+    current_time = time.time()
+    
+    # Check if this file is currently being processed (within last 30s)
+    if lock_key in RESUME_PROCESSING:
+        last_process_time = RESUME_PROCESSING[lock_key]
+        if current_time - last_process_time < 30: # 30 second lockout
+            print(f"⚠️ Resume {file.filename} already submitted. Rejecting duplicate.")
+            raise HTTPException(status_code=429, detail="Analysis already in progress. Please wait.")
+    
+    # Set lock
+    RESUME_PROCESSING[lock_key] = current_time
+    
     content = await file.read()
     result = resume_service.analyze_resume_content(content)
     if "error" in result:

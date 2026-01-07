@@ -353,6 +353,23 @@ def end_interview(sessionId: str, userId: int):
     if not session:
         return {"error": "Session not found"}
     
+    # IDEMPOTENCY CHECK with POLLING
+    # If session is marked complete but result isn't ready, wait for it (handle race condition)
+    if session.get("isComplete"):
+        print(f"⚠️ Session {sessionId} in progress or completed. Waiting for result...")
+        import time
+        for _ in range(30):  # Wait up to 30 seconds
+            if "finalResult" in session:
+                return session["finalResult"]
+            time.sleep(1)
+        
+        # If still no result after timeout, check if we should proceed or error
+        # If we return error here, it's a 404 which breaks UI.
+        # Ideally, we return the session state or a "processing" message, but frontend expects result.
+        # Fallback: try to return what we have or just error gracefully.
+        return {"error": "Session completion timed out"}
+
+    # Mark as complete immediately to block other requests
     session["isComplete"] = True
     
     # Calculate completion metrics
@@ -416,6 +433,8 @@ def end_interview(sessionId: str, userId: int):
     except Exception as e:
         print(f"❌ Failed to auto-save interview result: {e}")
     
+    # Cache result to support idempotency check
+    session["finalResult"] = result
     return result
 
 def generate_graded_results(session: dict) -> dict:
