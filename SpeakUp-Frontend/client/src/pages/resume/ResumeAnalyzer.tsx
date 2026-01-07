@@ -35,6 +35,7 @@ export default function ResumeAnalyzer() {
     
     // Create Form Data
     const formData = new FormData();
+    formData.append("userId", user.id.toString());
     formData.append("file", file);
 
     try {
