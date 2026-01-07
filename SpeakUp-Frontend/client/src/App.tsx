@@ -16,8 +16,7 @@ import InterviewResults from "@/pages/interview/InterviewResults";
 import GDSetup from "@/pages/gd/GDSetup";
 import GDSimulator from "@/pages/gd/GDSimulator";
 import ResumeAnalyzer from "@/pages/resume/ResumeAnalyzer";
-import VoiceOrbDemo from "@/pages/VoiceOrbDemo";
-import ApiTester from "@/pages/ApiTester";
+
 import Profile from "@/pages/Profile";
 import NotFound from "@/pages/not-found";
 
@@ -71,12 +70,7 @@ function Router() {
       <Route path="/resume">
         <ProtectedRoute component={ResumeAnalyzer} />
       </Route>
-      <Route path="/voice-orb-demo">
-        <ProtectedRoute component={VoiceOrbDemo} />
-      </Route>
-      <Route path="/api-tester">
-        <ProtectedRoute component={ApiTester} />
-      </Route>
+
       <Route path="/profile">
         <ProtectedRoute component={Profile} />
       </Route>

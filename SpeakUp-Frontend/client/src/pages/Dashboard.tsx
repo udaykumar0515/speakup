@@ -39,14 +39,7 @@ const TOOLS = [
     color: "bg-emerald-500",
     gradient: "from-emerald-500 to-emerald-600",
   },
-  {
-    title: "Voice Orb Demo",
-    description: "Experience the real-time AI voice-reactive interface.",
-    icon: MessageSquare,
-    href: "/voice-orb-demo",
-    color: "bg-pink-500",
-    gradient: "from-pink-500 to-pink-600",
-  },
+
 ];
 
 export default function Dashboard() {

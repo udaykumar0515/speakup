@@ -18,8 +18,7 @@ const NAV_ITEMS = [
   { label: "Mock Interview", icon: MessageSquare, href: "/interview" },
   { label: "GD Simulator", icon: Users, href: "/gd" },
   { label: "Resume Analyzer", icon: FileText, href: "/resume" },
-  { label: "Voice Orb Demo", icon: MessageSquare, href: "/voice-orb-demo" },
-  { label: "API Tester", icon: Brain, href: "/api-tester" },
+
   { label: "Profile", icon: UserCircle, href: "/profile" },
 ];
 
