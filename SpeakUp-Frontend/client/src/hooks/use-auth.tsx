@@ -42,10 +42,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(false);
   }, []);
 
-  const login = async (email: string, _password?: string) => {
+  const login = async (email: string, _password: string) => {
     setIsLoading(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 800));
     
     const mockUser: AuthUser = {
       id: 1, 
@@ -65,10 +63,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLocation("/dashboard");
   };
 
-  const signup = async (email: string, _password?: string, name?: string) => {
+  const signup = async (email: string, _password: string, name: string) => {
     setIsLoading(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000));
     
     const mockUser: AuthUser = {
       id: Math.floor(Math.random() * 1000) + 1,
