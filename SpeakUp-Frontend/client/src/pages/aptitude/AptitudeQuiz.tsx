@@ -10,10 +10,12 @@ import { useToast } from "@/hooks/use-toast";
 
 interface Props {
   topic: string;
+  questionCount: number;
+  aiPowered: boolean;
   onExit: () => void;
 }
 
-export default function AptitudeQuiz({ topic, onExit }: Props) {
+export default function AptitudeQuiz({ topic, questionCount, aiPowered, onExit }: Props) {
   const { user } = useAuth();
   const { toast } = useToast();
   
@@ -22,7 +24,7 @@ export default function AptitudeQuiz({ topic, onExit }: Props) {
   const [isFinished, setIsFinished] = useState(false);
   
   const createResult = useCreateAptitudeResult();
-  const { data: questionsData, isLoading, error } = useAptitudeQuestions(topic);
+  const { data: questionsData, isLoading, error } = useAptitudeQuestions(topic, questionCount, aiPowered);
   
   const questions = questionsData?.questions || [];
 
@@ -91,6 +93,12 @@ export default function AptitudeQuiz({ topic, onExit }: Props) {
     );
   }
 
+  const [expandedQuestion, setExpandedQuestion] = useState<number | null>(null);
+
+  const toggleExpanded = (idx: number) => {
+    setExpandedQuestion(prev => prev === idx ? null : idx);
+  };
+
   if (isFinished) {
     const correctCount = questions.reduce((acc, q, idx) => {
       return acc + (selectedAnswers[idx] === q.correctAnswer ? 1 : 0);
@@ -99,30 +107,118 @@ export default function AptitudeQuiz({ topic, onExit }: Props) {
 
     return (
       <Layout>
-        <div className="max-w-xl mx-auto bg-card border rounded-2xl p-8 text-center space-y-6">
-          <h2 className="text-2xl font-bold">Quiz Complete!</h2>
-          
-          <div className="w-48 h-48 mx-auto">
-            <CircularProgressbar 
-              value={score} 
-              text={`${score}%`} 
-              styles={buildStyles({
-                pathColor: score > 70 ? '#22c55e' : '#3b82f6',
-                textColor: '#1e293b',
-                trailColor: '#f1f5f9',
-              })}
-            />
+        <div className="max-w-3xl mx-auto space-y-6">
+          <div className="bg-card border rounded-2xl p-8 text-center space-y-6">
+            <h2 className="text-2xl font-bold">Quiz Complete!</h2>
+            
+            <div className="w-48 h-48 mx-auto">
+              <CircularProgressbar 
+                value={score} 
+                text={`${score}%`} 
+                styles={buildStyles({
+                  pathColor: score > 70 ? '#22c55e' : '#3b82f6',
+                  textColor: '#1e293b',
+                  trailColor: '#f1f5f9',
+                })}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 text-center">
+              <div className="bg-muted p-4 rounded-xl">
+                <p className="text-xs text-muted-foreground uppercase font-bold">Total Questions</p>
+                <p className="text-2xl font-bold">{questions.length}</p>
+              </div>
+              <div className="bg-muted p-4 rounded-xl">
+                <p className="text-xs text-muted-foreground uppercase font-bold">Correct Answers</p>
+                <p className="text-2xl font-bold text-green-600">{correctCount}</p>
+              </div>
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 text-center">
-            <div className="bg-muted p-4 rounded-xl">
-              <p className="text-xs text-muted-foreground uppercase font-bold">Total Questions</p>
-              <p className="text-2xl font-bold">{questions.length}</p>
-            </div>
-            <div className="bg-muted p-4 rounded-xl">
-              <p className="text-xs text-muted-foreground uppercase font-bold">Correct Answers</p>
-              <p className="text-2xl font-bold text-green-600">{correctCount}</p>
-            </div>
+          {/* Question Review - Accordion Style */}
+          <div className="space-y-3">
+            <h3 className="text-xl font-bold px-2">Review Your Answers</h3>
+            {questions.map((q: any, idx: number) => {
+              const isCorrect = selectedAnswers[idx] === q.correctAnswer;
+              const isExpanded = expandedQuestion === idx;
+              
+              return (
+                <div 
+                  key={idx} 
+                  className={`bg-card border-2 rounded-xl overflow-hidden transition-all ${
+                    isCorrect ? 'border-green-200' : 'border-red-200'
+                  }`}
+                >
+                  {/* Collapsed Header - Single Line */}
+                  <div 
+                    onClick={() => toggleExpanded(idx)}
+                    className="p-4 cursor-pointer hover:bg-muted/30 transition-colors flex items-center gap-3"
+                  >
+                    {isCorrect ? (
+                      <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0" />
+                    ) : (
+                      <XCircle className="w-5 h-5 text-red-600 shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">
+                        <span className="text-muted-foreground mr-2">Q{idx + 1}:</span>
+                        {q.question}
+                      </p>
+                    </div>
+                    <span className="text-muted-foreground shrink-0 transition-transform duration-200" style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                      ▼
+                    </span>
+                  </div>
+                  
+                  {/* Expanded Content */}
+                  {isExpanded && (
+                    <div className="border-t bg-muted/10">
+                      {/* Question */}
+                      <div className="p-4 pb-2">
+                        <p className="text-xs font-bold text-muted-foreground uppercase mb-2">Question</p>
+                        <p className="text-sm font-medium">{q.question}</p>
+                      </div>
+                      
+                      {/* Options */}
+                      <div className="px-4 pb-4">
+                        <p className="text-xs font-bold text-muted-foreground uppercase mb-2">Options</p>
+                        <div className="grid grid-cols-1 gap-2">
+                          {q.options.map((opt: string, optIdx: number) => {
+                            const isUserChoice = selectedAnswers[idx] === optIdx;
+                            const isRightAnswer = q.correctAnswer === optIdx;
+                            
+                            return (
+                              <div 
+                                key={optIdx}
+                                className={`text-sm px-3 py-2 rounded-lg flex items-center justify-between ${
+                                  isRightAnswer 
+                                    ? 'bg-green-100 text-green-800 font-medium border border-green-300' 
+                                    : isUserChoice 
+                                    ? 'bg-red-100 text-red-800 border border-red-300' 
+                                    : 'bg-muted/50 text-muted-foreground'
+                                }`}
+                              >
+                                <span>{opt}</span>
+                                {isRightAnswer && <span className="text-green-700 font-bold">✓ Correct</span>}
+                                {isUserChoice && !isRightAnswer && <span className="text-red-700 font-bold">✗ Your Answer</span>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      
+                      {/* Explanation */}
+                      {q.explanation && (
+                        <div className="px-4 pb-4 pt-2 border-t bg-blue-50/50">
+                          <p className="text-xs font-bold text-muted-foreground uppercase mb-2">💡 Explanation</p>
+                          <p className="text-sm text-foreground leading-relaxed">{q.explanation}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           <div className="pt-4">

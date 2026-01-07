@@ -27,20 +27,38 @@ import {
   type DashboardStatsResponse
 } from "../types/api-types";
 
+const API_BASE_URL = "http://127.0.0.1:8000";
+
 // Helper for API calls
 async function apiCall<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    ...options,
-    credentials: "include",
-  });
+  // Prepend base URL if path starts with /api or other backend endpoints
+  const fullUrl = (url.startsWith("/api") || url.startsWith("/chat") || url.startsWith("/stt") || url.startsWith("/tts") || url.startsWith("/resume"))
+    ? `${API_BASE_URL}${url}`
+    : url;
   
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({ message: "Unknown error occurred" }));
-    throw new Error(errorData.message || res.statusText);
+  console.log("🔵 API Call:", { method: options?.method || "GET", url, fullUrl, body: options?.body });
+    
+  try {
+    const res = await fetch(fullUrl, {
+      ...options,
+      // Removed credentials: "include" to work with backend's wildcard CORS
+    });
+    
+    console.log("🟢 API Response:", { status: res.status, statusText: res.statusText, ok: res.ok });
+    
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({ message: "Unknown error occurred" }));
+      throw new Error(errorData.message || res.statusText);
+    }
+    
+    if (res.status === 204) return {} as T;
+    const jsonData = await res.json();
+    console.log("📦 API Data:", jsonData);
+    return jsonData;
+  } catch (error) {
+    console.error("🔴 API Error:", error);
+    throw error;
   }
-  
-  if (res.status === 204) return {} as T;
-  return await res.json();
 }
 
 // --- Aptitude Hooks ---
@@ -53,10 +71,10 @@ export function useAptitudeHistory(userId: number) {
   });
 }
 
-export function useAptitudeQuestions(topic: string) {
+export function useAptitudeQuestions(topic: string, count: number = 20, aiPowered: boolean = false) {
   return useQuery({
-    queryKey: ["/api/aptitude/questions", topic],
-    queryFn: () => apiCall<AptitudeQuestionsResponse>(`/api/aptitude/questions/${topic}`),
+    queryKey: ['aptitude', 'questions', topic, count, aiPowered],
+    queryFn: () => apiCall<AptitudeQuestionsResponse>(`/api/aptitude/questions/${topic}?count=${count}&ai_powered=${aiPowered}`),
     enabled: !!topic,
   });
 }
