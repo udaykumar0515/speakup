@@ -3,6 +3,10 @@ import time
 import requests
 import uuid
 from models import ResumeResult
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 RESUME_RESULTS = []
 

@@ -4,6 +4,10 @@ import requests
 import uuid
 from models import InterviewSession, InterviewResult
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Global In-Memory Storage
 INTERVIEW_SESSIONS = {}
