@@ -16,8 +16,10 @@ INTERVIEW_RESULTS = []
 AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
 AZURE_OPENAI_KEY = os.getenv("AZURE_OPENAI_KEY")
 GPT_FULL_MODEL = os.getenv("GPT_FULL_MODEL")
+GPT_MINI_MODEL = os.getenv("GPT_MINI_MODEL")
 
-def get_gpt_response(messages, model=GPT_FULL_MODEL):
+def get_gpt_response(messages, model=GPT_FULL_MODEL, max_tokens=1500):
+    """Call Azure OpenAI API"""
     if not AZURE_OPENAI_ENDPOINT or not AZURE_OPENAI_KEY:
         return None 
     url = f"{AZURE_OPENAI_ENDPOINT}/openai/v1/chat/completions"
@@ -28,119 +30,574 @@ def get_gpt_response(messages, model=GPT_FULL_MODEL):
     body = {
         "model": model,
         "messages": messages,
-        "temperature": 0.7
+        "temperature": 0.7,
+        "max_tokens": max_tokens
     }
     try:
-        r = requests.post(url, headers=headers, json=body)
+        r = requests.post(url, headers=headers, json=body, timeout=60)
         return r.json()
-    except:
+    except Exception as e:
+        print(f"GPT Error: {e}")
         return None
 
-def start_new_session(userId: int, interviewType: str, jobRole: str, resumeText: str = ""):
+def start_new_session(userId: int, interviewType: str, difficulty: str, mode: str, resumeData: dict = None):
+    """
+    Start a new AI-powered interview session
+    
+    Args:
+        userId: User ID
+        interviewType: technical, hr, behavioral
+        difficulty: junior, mid, senior
+        mode: practice, graded
+        resumeData: Optional resume data from Resume Analyzer
+    """
     sessionId = str(uuid.uuid4())
     
-    # Generate Questions via AI
-    prompt = f"Generate 5 interview questions for a {interviewType} interview for the role of {jobRole}."
-    if resumeText:
-        prompt += f" Context from resume: {resumeText[:500]}..."
-    prompt += " Return ONLY a JSON array of strings. Example: [\"Question 1\", \"Question 2\"]"
+    # Generate dynamic questions using GPT-4 Full
+    print(f"🎯 Generating interview questions: {interviewType} / {difficulty} level")
+    questions = generate_questions(interviewType, difficulty, resumeData)
     
-    messages = [
-        {"role": "system", "content": "You are a helpful hiring manager helper. Output strictly JSON."},
-        {"role": "user", "content": prompt}
-    ]
-    
-    questions_text = []
-    resp = get_gpt_response(messages)
-    if resp and 'choices' in resp:
-        try:
-            content = resp['choices'][0]['message']['content']
-            content = content.replace("```json", "").replace("```", "").strip()
-            questions_text = json.loads(content)
-        except:
-            pass
-            
-    if not questions_text:
-        questions_text = [
-            "Tell me about yourself.",
-            "What are your strengths?",
-            "Describe a challenge you faced.",
-            "Why do you want this job?",
-            "Where do you see yourself in 5 years?"
-        ]
-    
-    structured_questions = [{"question": q, "answer": None, "feedback": None} for q in questions_text]
-    
-    session = InterviewSession(
-        sessionId=sessionId,
-        userId=userId,
-        interviewType=interviewType,
-        jobRole=jobRole,
-        questions=structured_questions,
-        currentQuestionIndex=0
-    )
+    # Create session
+    session = {
+        "sessionId": sessionId,
+        "userId": userId,
+        "interviewType": interviewType,
+        "difficulty": difficulty,
+        "mode": mode,
+        "resumeData": resumeData,
+        "questions": questions,
+        "answers": [],
+        "greetingGiven": False,
+        "greetingBonus": 0,
+        "currentQuestionIndex": 0,
+        "isComplete": False,
+        "startTime": datetime.now().isoformat()
+    }
     
     INTERVIEW_SESSIONS[sessionId] = session
     
     return {
         "sessionId": sessionId,
-        "firstQuestion": structured_questions[0]['question'],
-        "totalQuestions": len(structured_questions),
+        "totalQuestions": len(questions),
+        "greetingPrompt": "You may greet the interviewer to start. For example: 'Good morning, sir!'",
         "interviewType": interviewType,
-        "jobRole": jobRole
+        "difficulty": difficulty,
+        "mode": mode
     }
 
-def submit_answer(sessionId: str, answer: str):
+def generate_questions(interview_type: str, difficulty: str, resume_data: dict = None) -> list:
+    """
+    Use GPT-4 Full to generate 8-12 dynamic interview questions
+    """
+    # Build context from resume if available
+    resume_context = ""
+    if resume_data:
+        skills = resume_data.get("parsedData", {}).get("skills", [])
+        experience = resume_data.get("parsedData", {}).get("experience", "")
+        resume_context = f"\nCandidate's Skills: {', '.join(skills[:10])}\nExperience: {experience[:200]}"
+    
+    prompt = f"""You are an expert interviewer conducting a {interview_type.upper()} interview at {difficulty.upper()} level.
+
+{resume_context}
+
+TASK: Generate 8-12 high-quality interview questions that:
+1. Match the {difficulty} difficulty level (junior=easier, senior=harder)
+2. Focus on {interview_type} topics
+3. Include resume-specific questions if resume data is provided
+4. Progress from easier to harder
+5. Test real-world skills and understanding
+
+Interview Types Guide:
+- TECHNICAL: Coding, system design, algorithms, tech stack
+- HR: Leadership, teamwork, conflict resolution, work ethic
+- BEHAVIORAL: STAR method scenarios, past experiences, problem-solving
+
+Difficulty Levels:
+- JUNIOR: Basic concepts, simple scenarios
+- MID: Intermediate complexity, some depth
+- SENIOR: Advanced concepts, complex scenarios, leadership
+
+Respond with VALID JSON array of strings:
+["Question 1", "Question 2", ...]
+
+JSON Response:"""
+
+    try:
+        messages = [
+            {"role": "system", "content": "You are an expert interviewer. Always respond with valid JSON only."},
+            {"role": "user", "content": prompt}
+        ]
+        
+        resp = get_gpt_response(messages, model=GPT_FULL_MODEL, max_tokens=1000)
+        if resp and 'choices' in resp:
+            content = resp['choices'][0]['message']['content'].strip()
+            
+            # Clean markdown
+            if content.startswith("```json"):
+                content = content.replace("```json", "").replace("```", "").strip()
+            elif content.startswith("```"):
+                content = content.replace("```", "").strip()
+            
+            questions_list = json.loads(content)
+            
+            # Ensure 8-12 questions
+            if len(questions_list) < 8:
+                questions_list = questions_list + get_fallback_questions(interview_type, difficulty)[:(8-len(questions_list))]
+            elif len(questions_list) > 12:
+                questions_list = questions_list[:12]
+            
+            return [{"id": str(uuid.uuid4()), "text": q} for q in questions_list]
+    except Exception as e:
+        print(f"Question generation error: {e}")
+    
+    # Fallback to predefined questions
+    return get_fallback_questions(interview_type, difficulty)
+
+def get_fallback_questions(interview_type: str, difficulty: str) -> list:
+    """Fallback questions if AI generation fails"""
+    questions_bank = {
+        "technical": {
+            "junior": [
+                "What is the difference between a list and a tuple in Python?",
+                "Explain what a REST API is.",
+                "What is version control and why is it important?",
+                "Describe the concept of object-oriented programming.",
+                "What is the difference between GET and POST requests?",
+                "How do you handle errors in your code?",
+                "What is a database index?",
+                "Explain the concept of inheritance."
+            ],
+            "mid": [
+                "Design a simple URL shortener service.",
+                "How would you optimize a slow database query?",
+                "Explain the CAP theorem.",
+                "What are design patterns? Give examples.",
+                "How do you ensure code quality in a team?",
+                "Explain async/await and when to use it.",
+                "What is dependency injection?",
+                "How would you design a caching system?"
+            ],
+            "senior": [
+                "Design a scalable real-time chat system like WhatsApp.",
+                "How would you handle millions of concurrent requests?",
+                "Explain different types of load balancing strategies.",
+                "Design a distributed rate limiter.",
+                "How do you ensure data consistency in microservices?",
+                "Explain your approach to technical debt.",
+                "How would you migrate a monolith to microservices?",
+                "Design a fault-tolerant payment processing system."
+            ]
+        },
+        "hr": {
+            "junior": [
+                "Tell me about yourself.",
+                "Why do you want to work here?",
+                "What are your greatest strengths?",
+                "Describe a challenge you faced and how you handled it.",
+                "Where do you see yourself in 5 years?",
+                "Why should we hire you?",
+                "What motivates you?",
+                "How do you handle criticism?"
+            ],
+            "mid": [
+                "Describe a time you led a team project.",
+                "How do you prioritize tasks when everything is urgent?",
+                "Tell me about a conflict with a coworker and how you resolved it.",
+                "Describe a time you failed. What did you learn?",
+                "How do you handle difficult stakeholders?",
+                "What's your management style?",
+                "How do you mentor junior team members?",
+                "Describe a time you had to make a difficult decision."
+            ],
+            "senior": [
+                "How do you build and scale high-performing teams?",
+                "Describe your approach to organizational change management.",
+                "How do you align team goals with business objectives?",
+                "Tell me about a time you influenced cross-functional teams.",
+                "How do you handle underperforming team members?",
+                "What's your strategy for driving innovation?",
+                "How do you balance technical debt with new features?",
+                "Describe your approach to conflict resolution at scale."
+            ]
+        },
+        "behavioral": [
+            "Describe a time you had to learn something completely new quickly.",
+            "Tell me about a time you disagreed with your manager.",
+            "Describe a situation where you had to work with limited resources.",
+            "Tell me about your biggest professional achievement.",
+            "Describe a time you made a mistake. How did you handle it?",
+            "Tell me about a time you had to meet a tight deadline.",
+            "Describe a situation where you had to adapt to change.",
+            "Tell me about a time you went above and beyond."
+        ]
+    }
+    
+    if interview_type == "behavioral":
+        selected = questions_bank["behavioral"][:10]
+    else:
+        selected = questions_bank.get(interview_type, {}).get(difficulty, questions_bank["technical"]["junior"])[:10]
+    
+    return [{"id": str(uuid.uuid4()), "text": q} for q in selected]
+
+def process_greeting(sessionId: str, message: str):
+    """
+    Process user's greeting and award bonus points
+    """
     session = INTERVIEW_SESSIONS.get(sessionId)
     if not session:
-        return None
+        return {"error": "Session not found"}
     
-    idx = session.currentQuestionIndex
-    if idx < len(session.questions):
-        session.questions[idx]['answer'] = answer
-        session.currentQuestionIndex += 1
-        
-        if session.currentQuestionIndex >= len(session.questions):
-            session.isComplete = True
-            return {
-                "isComplete": True,
-                "summary": generate_summary(session)
-            }
+    # Check if greeting already given
+    if session["greetingGiven"]:
+        return {
+            "acknowledged": False,
+            "message": "Greeting already recorded. Let's begin the interview.",
+            "firstQuestion": session["questions"][0]["text"],
+            "progress": 0
+        }
+    
+    # Detect professional greeting
+    msg_lower = message.lower()
+    greeting_keywords = ["good morning", "good afternoon", "good evening", "hello", "hi", "greetings"]
+    professional_terms = ["sir", "ma'am", "interviewer", "team"]
+    
+    is_greeting = any(kw in msg_lower for kw in greeting_keywords)
+    is_professional = any(term in msg_lower for term in professional_terms)
+    
+    if is_greeting:
+        session["greetingGiven"] = True
+        if is_professional:
+            session["greetingBonus"] = 5  # Extra points for professional greeting
+            response = "Good morning! I appreciate your professionalism. Let's get started with the interview."
         else:
-            return {
-                "isComplete": False,
-                "nextQuestion": session.questions[session.currentQuestionIndex]['question'],
-                "questionNumber": session.currentQuestionIndex + 1
-            }
-    return {"isComplete": True}
+            session["greet ingBonus"] = 2  # Basic greeting
+            response = "Hello! Let's begin the interview."
+        
+        return {
+            "acknowledged": True,
+            "response": response,
+            "greetingBonus": session["greetingBonus"],
+            "firstQuestion": session["questions"][0]["text"],
+            "progress": 0
+        }
+    else:
+        # Not a greeting, treat as first answer
+        return process_answer(sessionId, message)
 
-def generate_summary(session: InterviewSession):
+def process_answer(sessionId: str, answer: str):
+    """
+    Process user's answer and move to next question
+    """
+    session = INTERVIEW_SESSIONS.get(sessionId)
+    if not session:
+        return {"error": "Session not found"}
+    
+    idx = session["currentQuestionIndex"]
+    
+    if idx >= len(session["questions"]):
+        return {"error": "Interview already complete"}
+    
+    # Record answer
+    current_question = session["questions"][idx]
+    session["answers"].append({
+        "questionId": current_question["id"],
+        "questionText": current_question["text"],
+        "userAnswer": answer,
+        "timestamp": datetime.now().isoformat()
+    })
+    
+    session["currentQuestionIndex"] += 1
+    
+    # Calculate progress
+    progress = (session["currentQuestionIndex"] / len(session["questions"])) * 100
+    
+    # Check if interview is complete
+    if session["currentQuestionIndex"] >= len(session["questions"]):
+        session["isComplete"] = True
+        return {
+            "isComplete": True,
+            "progress": 100,
+            "message": "Interview complete! Generating your results..."
+        }
+    
+    # Return next question with brief acknowledgment
+    acknowledgments = [
+        "Okay. Next question:",
+        "Understood. Moving on:",
+        "Noted. Here's the next one:",
+        "Got it. Next:",
+        "Alright. Let's continue:"
+    ]
+    
+    import random
+    ack = random.choice(acknowledgments)
+    next_question = session["questions"][session["currentQuestionIndex"]]["text"]
+    
     return {
-        "communicationScore": 85,
-        "technicalScore": 80,
-        "confidenceScore": 75,
-        "overallScore": 80,
-        "feedback": "Good performance! Keep practicing STAR method."
+        "isComplete": False,
+        "acknowledgment": ack,
+        "nextQuestion": next_question,
+        "questionNumber": session["currentQuestionIndex"] + 1,
+        "progress": round(progress, 1)
     }
 
-def get_teach_me(sessionId: str, questionNumber: int, question: str, userAnswer: str):
-    messages = [
-        {"role": "system", "content": "You are an interview coach."},
-        {"role": "user", "content": f"Question: {question}\nUser Answer: {userAnswer}\nProvide coaching in JSON: {{ \"coaching\": \"...\", \"modelAnswer\": \"...\", \"tips\": [] }}"}
-    ]
-    resp = get_gpt_response(messages)
-    if resp and 'choices' in resp:
-        try:
-            content = resp['choices'][0]['message']['content']
-            content = content.replace("```json", "").replace("```", "").strip()
-            return json.loads(content)
-        except:
-            pass
+def end_interview(sessionId: str, userId: int):
+    """
+    End interview and generate comprehensive results
+    """
+    session = INTERVIEW_SESSIONS.get(sessionId)
+    if not session:
+        return {"error": "Session not found"}
+    
+    session["isComplete"] = True
+    
+    # Generate overall feedback and scores using GPT-4 Full
+    print("📊 Generating comprehensive interview feedback...")
+    
+    if session["mode"] == "graded":
+        result = generate_graded_results(session)
+    else:  # practice mode
+        result = generate_practice_results(session)
+    
+    return result
+
+def generate_graded_results(session: dict) -> dict:
+    """
+    Generate results with scores for graded mode
+    """
+    # Build context for GPT-4
+    qa_context = "\n\n".join([
+        f"Q{i+1}: {ans['questionText']}\nAnswer: {ans['userAnswer']}"
+        for i, ans in enumerate(session["answers"])
+    ])
+    
+    prompt = f"""You are an expert interview evaluator for a {session['interviewType'].upper()} interview at {session['difficulty'].upper()} level.
+
+INTERVIEW TRANSCRIPT:
+{qa_context}
+
+TASK: Provide comprehensive evaluation in VALID JSON format:
+
+{{
+  "overallScore": <0-100>,
+  "overallFeedback": "Detailed 3-4 sentence overall assessment",
+  "metrics": {{
+    "technicalAccuracy": <0-100>,
+    "communicationClarity": <0-100>,
+    "confidence": <0-100>,
+    "depthOfUnderstanding": <0-100>
+  }},
+  "strengths": ["strength1", "strength2", "strength3"],
+  "areasForImprovement": ["area1", "area2", "area3"],
+  "questionBreakdown": [
+    {{
+      "questionNumber": 1,
+      "score": <0-10>,
+      "feedback": "Specific feedback for this answer"
+    }}
+  ]
+}}
+
+Scoring Criteria:
+- Technical Accuracy: Correctness of information
+- Communication: Clarity, structure, conciseness
+- Confidence: Tone, decisiveness, conviction
+- Understanding: Depth, examples, real-world application
+
+JSON Response:"""
+
+    try:
+        messages = [
+            {"role": "system", "content": "You are an expert interview evaluator. Respond with valid JSON only."},
+            {"role": "user", "content": prompt}
+        ]
+        
+        resp = get_gpt_response(messages, model=GPT_FULL_MODEL, max_tokens=2000)
+        if resp and 'choices' in resp:
+            content = resp['choices'][0]['message']['content'].strip()
             
+            # Clean markdown
+            if content.startswith("```json"):
+                content = content.replace("```json", "").replace("```", "").strip()
+            elif content.startswith("```"):
+                content = content.replace("```", "").strip()
+            
+            evaluation = json.loads(content)
+            
+            # Add greeting bonus to overall score
+            overall_score = evaluation.get("overallScore", 75)
+            overall_score = min(100, overall_score + session.get("greetingBonus", 0))
+            evaluation["overallScore"] = overall_score
+            evaluation["greetingBonus"] = session.get("greetingBonus", 0)
+            
+            # Add question texts to breakdown
+            for i, item in enumerate(evaluation.get("questionBreakdown", [])):
+                if i < len(session["answers"]):
+                    item["questionText"] = session["answers"][i]["questionText"]
+                    item["userAnswer"] = session["answers"][i]["userAnswer"]
+                    item["questionId"] = session["answers"][i]["questionId"]
+            
+            return evaluation
+    except Exception as e:
+        print(f"Evaluation error: {e}")
+    
+    # Fallback evaluation
+    return get_fallback_evaluation(session, graded=True)
+
+def generate_practice_results(session: dict) -> dict:
+    """
+    Generate results with feedback only (no scores) for practice mode
+    """
+    # Similar to graded but without scores
+    qa_context = "\n\n".join([
+        f"Q{i+1}: {ans['questionText']}\nAnswer: {ans['userAnswer']}"
+        for i, ans in enumerate(session["answers"])
+    ])
+    
+    prompt = f"""You are a supportive interview coach for a {session['interviewType'].upper()} interview at {session['difficulty'].upper()} level.
+
+INTERVIEW TRANSCRIPT:
+{qa_context}
+
+TASK: Provide encouraging, constructive feedback in VALID JSON:
+
+{{
+  "overallFeedback": "Encouraging 3-4 sentence overall assessment focusing on growth",
+  "strengths": ["strength1", "strength2", "strength3"],
+  "areasForImprovement": ["area1", "area2", "area3"],
+  "actionableadvice": ["tip1", "tip2", "tip3"],
+  "questionBreakdown": [
+    {{
+      "questionNumber": 1,
+      "feedback": "Constructive, specific feedback for this answer",
+      "improvementTips": ["tip1", "tip2"]
+    }}
+  ]
+}}
+
+Focus on:
+- What they did well
+- Specific ways to improve
+- Actionable next steps
+- Encouraging tone
+
+JSON Response:"""
+
+    try:
+        messages = [
+            {"role": "system", "content": "You are a supportive interview coach. Respond with valid JSON only."},
+            {"role": "user", "content": prompt}
+        ]
+        
+        resp = get_gpt_response(messages, model=GPT_FULL_MODEL, max_tokens=2000)
+        if resp and 'choices' in resp:
+            content = resp['choices'][0]['message']['content'].strip()
+            
+            # Clean markdown
+            if content.startswith("```json"):
+                content = content.replace("```json", "").replace("```", "").strip()
+            elif content.startswith("```"):
+                content = content.replace("```", "").strip()
+            
+            evaluation = json.loads(content)
+            
+            # Add question texts to breakdown
+            for i, item in enumerate(evaluation.get("questionBreakdown", [])):
+                if i < len(session["answers"]):
+                    item["questionText"] = session["answers"][i]["questionText"]
+                    item["userAnswer"] = session["answers"][i]["userAnswer"]
+                    item["questionId"] = session["answers"][i]["questionId"]
+            
+            evaluation["mode"] = "practice"
+            evaluation["greetingBonus"] = session.get("greetingBonus", 0)
+            
+            return evaluation
+    except Exception as e:
+        print(f"Evaluation error: {e}")
+    
+    # Fallback
+    return get_fallback_evaluation(session, graded=False)
+
+def get_fallback_evaluation(session: dict, graded: bool = True) -> dict:
+    """Fallback evaluation if AI fails"""
+    base = {
+        "overallFeedback": "Good performance overall. Keep practicing to improve further.",
+        "strengths": ["Clear communication", "Good understanding of concepts"],
+        "areasForImprovement": ["Provide more specific examples", "Structure answers better"],
+        "questionBreakdown": []
+    }
+    
+    for i, ans in enumerate(session["answers"]):
+        breakdown_item = {
+            "questionNumber": i + 1,
+            "questionText": ans["questionText"],
+            "userAnswer": ans["userAnswer"],
+            "questionId": ans["questionId"],
+            "feedback": "Good attempt. Consider adding more specific details."
+        }
+        
+        if graded:
+            breakdown_item["score"] = 7
+        else:
+            breakdown_item["improvementTips"] = ["Add more examples", "Be more concise"]
+        
+        base["questionBreakdown"].append(breakdown_item)
+    
+    if graded:
+        base["overallScore"] = 75 + session.get("greetingBonus", 0)
+        base["metrics"] = {
+            "technicalAccuracy": 75,
+            "communicationClarity": 80,
+            "confidence": 70,
+            "depthOfUnderstanding": 75
+        }
+        base["greetingBonus"] = session.get("greetingBonus", 0)
+    else:
+        base["mode"] = "practice"
+        base["actionableadvice"] = ["Practice STAR method", "Prepare more examples"]
+    
+    return base
+
+def get_teach_me(questionId: str, questionText: str, userAnswer: str = ""):
+    """
+    Use GPT-mini to explain a question in detail
+    """
+    prompt = f"""You are an expert interview coach explaining interview questions.
+
+QUESTION: {questionText}
+
+TASK: Provide a comprehensive explanation to help the candidate understand and answer this question better.
+
+Include:
+1. What the question is really asking
+2. Key concepts to understand
+3. How to structure your answer
+4. An example answer framework
+5. Common mistakes to avoid
+
+Be encouraging, specific, and actionable."""
+
+    try:
+        messages = [
+            {"role": "system", "content": "You are a helpful interview coach."},
+            {"role": "user", "content": prompt}
+        ]
+        
+        resp = get_gpt_response(messages, model=GPT_MINI_MODEL, max_tokens=800)
+        if resp and 'choices' in resp:
+            explanation = resp['choices'][0]['message']['content'].strip()
+            return {
+                "questionId": questionId,
+                "questionText": questionText,
+                "explanation": explanation
+            }
+    except Exception as e:
+        print(f"Teach me error: {e}")
+    
     return {
-        "coaching": "Good attempt.",
-        "modelAnswer": "I would say...",
-        "tips": ["Be concise"]
+        "questionId": questionId,
+        "questionText": questionText,
+        "explanation": "This is a good question to assess your understanding. Consider using the STAR method (Situation, Task, Action, Result) to structure your answer with specific examples from your experience."
     }
 
 def save_result(result: InterviewResult):

@@ -32,23 +32,25 @@ app.add_middleware(
 # ---------- REQUEST MODELS ----------
 class StartInterviewReq(BaseModel):
     userId: int
-    interviewType: str
-    jobRole: Optional[str] = "General"
-    resumeText: Optional[str] = ""
-    useResume: Optional[bool] = False
-    adaptiveDifficultyEnabled: Optional[bool] = False
+    interviewType: str  # technical, hr, behavioral
+    difficulty: str  # junior, mid, senior
+    mode: str  # practice, graded
+    resumeData: Optional[dict] = None  # Output from Resume Analyzer
 
-class AnswerInterviewReq(BaseModel):
+class MessageInterviewReq(BaseModel):
     sessionId: str
     userId: int
-    answer: str
-    questionNumber: int
+    message: str
+    action: str  # greet, answer
+
+class EndInterviewReq(BaseModel):
+    sessionId: str
+    userId: int
 
 class TeachMeReq(BaseModel):
-    sessionId: str
-    questionNumber: int
-    userAnswer: str
-    question: str
+    questionId: str
+    questionText: str
+    userAnswer: Optional[str] = ""
 
 class SaveInterviewReq(BaseModel):
     userId: int
@@ -176,23 +178,42 @@ def update_user(id: int, req: UpdateUserReq):
 # --- INTERVIEW ---
 @interview_router.post("/start")
 def start_interview(req: StartInterviewReq):
-    result = interview_service.start_new_session(req.userId, req.interviewType, req.jobRole, req.resumeText)
+    result = interview_service.start_new_session(
+        req.userId, 
+        req.interviewType, 
+        req.difficulty, 
+        req.mode, 
+        req.resumeData
+    )
     if not result:
         raise HTTPException(status_code=500, detail="Failed to start interview session")
     return result
 
-@interview_router.post("/answer")
-def answer_interview(req: AnswerInterviewReq):
-    result = interview_service.submit_answer(req.sessionId, req.answer)
-    if result is None:
-        raise HTTPException(status_code=404, detail="Session not found")
+@interview_router.post("/message")
+def interview_message(req: MessageInterviewReq):
+    if req.action == "greet":
+        result = interview_service.process_greeting(req.sessionId, req.message)
+    elif req.action == "answer":
+        result = interview_service.process_answer(req.sessionId, req.message)
+    else:
+        raise HTTPException(status_code=400, detail="Invalid action")
+    
+    if result is None or "error" in result:
+        raise HTTPException(status_code=404, detail=result.get("error", "Session not found"))
+    return result
+
+@interview_router.post("/end")
+def end_interview(req: EndInterviewReq):
+    result = interview_service.end_interview(req.sessionId, req.userId)
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
     return result
 
 @interview_router.post("/teach-me")
 def teach_me(req: TeachMeReq):
-    result = interview_service.get_teach_me(req.sessionId, req.questionNumber, req.question, req.userAnswer)
+    result = interview_service.get_teach_me(req.questionId, req.questionText, req.userAnswer)
     if not result:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise HTTPException(status_code=500, detail="Failed to generate explanation")
     return result
 
 @interview_router.post("")
