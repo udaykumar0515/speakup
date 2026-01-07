@@ -22,11 +22,16 @@ export default function AptitudeQuiz({ topic, questionCount, aiPowered, onExit }
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<number[]>([]);
   const [isFinished, setIsFinished] = useState(false);
+  const [expandedQuestion, setExpandedQuestion] = useState<number | null>(null);
   
   const createResult = useCreateAptitudeResult();
   const { data: questionsData, isLoading, error } = useAptitudeQuestions(topic, questionCount, aiPowered);
   
   const questions = questionsData?.questions || [];
+
+  const toggleExpanded = (idx: number) => {
+    setExpandedQuestion(prev => prev === idx ? null : idx);
+  };
 
   const handleAnswer = (optionIndex: number) => {
     const newAnswers = [...selectedAnswers];
@@ -92,12 +97,6 @@ export default function AptitudeQuiz({ topic, questionCount, aiPowered, onExit }
         </Layout>
     );
   }
-
-  const [expandedQuestion, setExpandedQuestion] = useState<number | null>(null);
-
-  const toggleExpanded = (idx: number) => {
-    setExpandedQuestion(prev => prev === idx ? null : idx);
-  };
 
   if (isFinished) {
     const correctCount = questions.reduce((acc, q, idx) => {
