@@ -81,16 +81,16 @@ export default function AptitudePractice() {
         <div className="space-y-6">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <h3 className="text-xl font-bold">Regular Practice Mode</h3>
-            <div className="flex items-center gap-6 bg-gradient-to-r from-primary/10 to-purple-50 border-2 border-primary/30 px-8 py-4 rounded-2xl shadow-sm hover:shadow-md transition-all">
-              <span className="text-sm font-bold text-muted-foreground uppercase">Number of Questions</span>
-              <span className="text-3xl font-black text-primary min-w-[3ch] text-center">{questionCount}</span>
+            <div className="flex items-center gap-4">
+              <span className="text-sm font-medium text-muted-foreground">Questions:</span>
+              <span className="text-xl font-bold text-primary min-w-[3ch] text-center">{questionCount}</span>
               <Slider
                 value={[questionCount]}
                 onValueChange={(value) => setQuestionCount(value[0])}
                 min={10}
                 max={30}
                 step={1}
-                className="w-40"
+                className="w-44"
               />
             </div>
           </div>
