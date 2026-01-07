@@ -14,7 +14,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/use-auth";
-import { useStartInterview, useSubmitInterviewAnswer, useInterviewTeachMe } from "@/hooks/use-api";
+import { useStartInterview, useSubmitInterviewAnswer, useInterviewTeachMe, useCreateInterviewResult } from "@/hooks/use-api";
 import { useToast } from "@/hooks/use-toast";
 
 type Message = {
@@ -100,6 +100,8 @@ export default function MockInterview() {
     initSession();
   }, [user]); // Run once when user is available
 
+  const createInterviewResult = useCreateInterviewResult(); // Add Hook
+
   const handleSend = async () => {
     if (!input.trim() || submitAnswer.isPending || !sessionId) return;
     
@@ -118,6 +120,16 @@ export default function MockInterview() {
 
       if (res.isComplete && res.summary) {
         setSummary(res.summary);
+        
+        // Save Result to History
+        await createInterviewResult.mutateAsync({
+            userId: user?.id || 1,
+            communicationScore: res.summary.communicationScore,
+            confidenceScore: res.summary.confidenceScore,
+            relevanceScore: res.summary.technicalScore, // Mapping technical to relevance
+            feedback: res.summary.feedback
+        });
+
         setIsFinished(true);
       } else if (res.nextQuestion) {
         setMessages(prev => [...prev, { role: 'bot', text: res.nextQuestion! }]);
@@ -125,7 +137,6 @@ export default function MockInterview() {
       }
     } catch (err: any) {
       toast({ title: "Failed to send answer", description: err.message, variant: "destructive" });
-      // Remove failed message? Or let user retry? For now keep it.
     }
   };
 
