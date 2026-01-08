@@ -70,11 +70,18 @@ def get_user_stats(userId: str):
         })
     
     # Sort by date
-    activity.sort(key=lambda x: x['date'] if x['date'] else '', reverse=True)
+    def get_sort_key(x):
+        d = x.get('date')
+        if not d: return ''
+        if hasattr(d, 'isoformat'):
+            return d.isoformat()
+        return str(d)
+        
+    activity.sort(key=get_sort_key, reverse=True)
     
-    # Format dates and get top 5
+    # Format dates and get top 3 (as requested)
     final_activity = []
-    for item in activity[:5]:
+    for item in activity[:3]:
         if hasattr(item['date'], 'isoformat'):
             item['date'] = item['date'].isoformat()
         elif item['date']:

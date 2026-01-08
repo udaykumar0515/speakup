@@ -132,7 +132,9 @@ export default function Dashboard() {
                        </div>
                        <div>
                           <p className="font-bold text-sm text-foreground">{activity.description}</p>
-                          <p className="text-xs text-muted-foreground">{new Date(activity.date).toLocaleDateString()}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(activity.date).toLocaleDateString()} • {new Date(activity.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </p>
                        </div>
                     </div>
                     {activity.score !== undefined && (
