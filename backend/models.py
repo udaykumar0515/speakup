@@ -7,6 +7,10 @@ class User(BaseModel):
     id: Optional[int] = None
     email: str
     name: str = "User"
+    occupation: Optional[str] = None
+    gender: Optional[str] = None
+    age: Optional[int] = None
+    avatarUrl: Optional[str] = None
     createdAt: datetime = Field(default_factory=datetime.now)
 
 # --- APTITUDE ---

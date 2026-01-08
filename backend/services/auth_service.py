@@ -33,10 +33,7 @@ def update_user(uid: str, updates: dict) -> Optional[dict]:
     
     for field in allowed_fields:
         if field in updates and updates[field] is not None:
-            if field == "name":
-                update_data["name"] = updates[field]
-            else:
-                update_data[f"metadata.{field}"] = updates[field]
+            update_data[field] = updates[field]
     
     if update_data:
         user_ref.update(update_data)

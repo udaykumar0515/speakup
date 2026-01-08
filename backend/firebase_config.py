@@ -76,12 +76,10 @@ def get_or_create_user(uid: str, email: str, name: str = None):
             'email': email,
             'name': name or email.split('@')[0],
             'createdAt': firestore.SERVER_TIMESTAMP,
-            'metadata': {
-                'age': None,
-                'gender': None,
-                'occupation': None,
-                'avatarUrl': None
-            }
+            'age': None,
+            'gender': None,
+            'occupation': None,
+            'avatarUrl': None
         }
         user_ref.set(user_data)
         return user_data
