@@ -1,4 +1,6 @@
 import { Link } from "wouter";
+import { cn } from "@/lib/utils";
+import logoSvg from "@/assets/logo.svg";
 import { 
   Menu,
   LayoutDashboard, 
@@ -24,8 +26,8 @@ export function MobileNav() {
   return (
     <div className="md:hidden flex items-center justify-between p-4 border-b bg-card">
       <div className="flex items-center gap-2">
-        <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-          <MessageSquare className="w-5 h-5 text-white" />
+        <div className="w-8 h-8 flex items-center justify-center translate-y-[10%]">
+          <img src={logoSvg} alt="SpeakUp Logo" className="w-full h-full" />
         </div>
         <span className="font-display font-bold text-xl">SpeakUp</span>
       </div>

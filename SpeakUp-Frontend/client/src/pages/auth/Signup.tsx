@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { MessageSquare, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
+import logoSvg from "@/assets/logo.svg";
 
 export default function Signup() {
   const [name, setName] = useState("");
@@ -33,8 +34,8 @@ export default function Signup() {
         className="w-full max-w-md"
       >
         <div className="text-center mb-8">
-          <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
-            <MessageSquare className="w-7 h-7 text-white" />
+          <div className="w-12 h-12 flex items-center justify-center mx-auto mb-4">
+            <img src={logoSvg} alt="SpeakUp Logo" className="w-full h-full" />
           </div>
           <h1 className="font-display text-3xl font-bold text-foreground">Create Account</h1>
           <p className="text-muted-foreground mt-2">Join SpeakUp and master your interviews</p>
