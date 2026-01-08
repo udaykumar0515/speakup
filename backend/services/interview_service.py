@@ -409,26 +409,30 @@ def end_interview(sessionId: str, userId: int):
 
     # PERSISTENCE: Save result to Firestore
     try:
-        metrics = result.get("metrics", {})
-        
-        # Map detailed metrics to flat structure for DB
-        interview_res = InterviewResult(
-            userId=userId,
-            communicationScore=metrics.get("communicationClarity", 0),
-            confidenceScore=metrics.get("confidence", 0),
-            relevanceScore=metrics.get("depthOfUnderstanding", 0), # Mapping Understanding -> Relevance
-            feedback=result.get("overallFeedback", "Interview completed."),
-            interviewType=session["interviewType"],
-            jobRole=session.get("jobRole", "General"),
-            questionCount=questions_answered,
-            sessionDuration=session_duration_minutes
-        )
-        
-        print(f"💾 Automatically saving interview result for session {sessionId}")
-        save_result(interview_res)
-        
-        # Add the saved ID to return value if needed
-        result["id"] = interview_res.id
+        if session["mode"] != "practice":
+            metrics = result.get("metrics", {})
+            
+            # Map detailed metrics to flat structure for DB
+            interview_res = InterviewResult(
+                userId=userId,
+                communicationScore=metrics.get("communicationClarity", 0),
+                confidenceScore=metrics.get("confidence", 0),
+                relevanceScore=metrics.get("depthOfUnderstanding", 0), # Mapping Understanding -> Relevance
+                feedback=result.get("overallFeedback", "Interview completed."),
+                interviewType=session["interviewType"],
+                jobRole=session.get("jobRole", "General"),
+                questionCount=questions_answered,
+                sessionDuration=session_duration_minutes
+            )
+            
+            print(f"💾 Automatically saving interview result for session {sessionId}")
+            save_result(interview_res)
+            
+            # Add the saved ID to return value if needed
+            result["id"] = interview_res.id
+        else:
+            print(f"⏩ Practice mode session {sessionId}: Skipping persistence as requested.")
+            result["id"] = "temporary-practice-id"
         
     except Exception as e:
         print(f"❌ Failed to auto-save interview result: {e}")
