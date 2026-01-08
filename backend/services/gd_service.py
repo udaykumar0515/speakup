@@ -663,7 +663,8 @@ def save_result(result: GdResult):
     
     # Convert to dict
     result_dict = result.model_dump()
-    result_dict['createdAt'] = datetime.now()
+    from google.cloud.firestore_v1 import SERVER_TIMESTAMP
+    result_dict['createdAt'] = SERVER_TIMESTAMP
     
     # Save to Firestore
     firestore_client.collection('gd_results').document(result.id).set(result_dict)

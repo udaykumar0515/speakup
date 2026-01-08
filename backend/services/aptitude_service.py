@@ -247,7 +247,8 @@ def save_result(result: AptitudeResult):
     result.id = str(uuid.uuid4())
     
     result_dict = result.model_dump()
-    result_dict['createdAt'] = datetime.now()
+    from google.cloud.firestore_v1 import SERVER_TIMESTAMP
+    result_dict['createdAt'] = SERVER_TIMESTAMP
     
     firestore_client.collection('aptitude_results').document(result.id).set(result_dict)
     

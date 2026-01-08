@@ -178,10 +178,12 @@ Respond ONLY with valid JSON, no markdown formatting."""
 
 def save_result(result: ResumeResult):
     """Save resume result to Firestore"""
+    from google.cloud.firestore_v1 import SERVER_TIMESTAMP
+    
     result.id = str(uuid.uuid4())
     
     result_dict = result.model_dump()
-    result_dict['createdAt'] = datetime.now()
+    result_dict['createdAt'] = SERVER_TIMESTAMP
     
     firestore_client.collection('resume_results').document(result.id).set(result_dict)
     

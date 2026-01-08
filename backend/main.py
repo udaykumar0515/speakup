@@ -388,27 +388,34 @@ async def get_aptitude_history(userId: str, current_user: dict = Depends(get_cur
     return aptitude_service.get_history(userId)
 
 # --- RESUME ---
-# Global processing locks for idempotency
-RESUME_PROCESSING = {} # userId_filename -> timestamp
 
 @resume_router.post("/upload")
 async def upload_resume(userId: str = Form(...), file: UploadFile = File(...)):
-    # IDEMPOTENCY CHECK
-    lock_key = f"{userId}_{file.filename}"
-    import time
-    current_time = time.time()
-    
-    # Check if this file is currently being processed (within last 30s)
-    if lock_key in RESUME_PROCESSING:
-        last_process_time = RESUME_PROCESSING[lock_key]
-        if current_time - last_process_time < 30: # 30 second lockout
-            print(f"⚠️ Resume {file.filename} already submitted. Rejecting duplicate.")
-            raise HTTPException(status_code=429, detail="Analysis already in progress. Please wait.")
-    
-    # Set lock
-    RESUME_PROCESSING[lock_key] = current_time
+    import hashlib
     
     content = await file.read()
+    
+    # Create content hash for deduplication
+    content_hash = hashlib.sha256(content).hexdigest()
+    
+    # Check if this exact file was already analyzed recently (within last 24 hours)
+    from datetime import datetime, timedelta
+    one_day_ago = datetime.utcnow() - timedelta(days=1)
+    
+    existing_docs = firestore_client.collection('resume_results')\
+        .where('userId', '==', userId)\
+        .where('fileName', '==', file.filename)\
+        .stream()
+    
+    for doc in existing_docs:
+        data = doc.to_dict()
+        doc_time = data.get('createdAt')
+        # If we find a very recent upload of the same file, return it
+        if doc_time and hasattr(doc_time, 'timestamp'):
+            if datetime.fromtimestamp(doc_time.timestamp()) > one_day_ago:
+                print(f"⚠️ Resume {file.filename} already analyzed recently. Returning existing result.")
+                return data
+    
     result = resume_service.analyze_resume_content(content)
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])

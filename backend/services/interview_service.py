@@ -734,7 +734,8 @@ def save_result(result: InterviewResult):
     
     # Convert Pydantic model to dict
     result_dict = result.model_dump()
-    result_dict['createdAt'] = datetime.now()
+    from google.cloud.firestore_v1 import SERVER_TIMESTAMP
+    result_dict['createdAt'] = SERVER_TIMESTAMP
     
     # Save to Firestore
     firestore_client.collection('interview_results').document(result.id).set(result_dict)

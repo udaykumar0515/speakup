@@ -7,6 +7,7 @@ import {
   signInWithPopup,
   signOut,
   sendPasswordResetEmail,
+  sendEmailVerification,
   onAuthStateChanged,
   updateProfile as firebaseUpdateProfile,
   User as FirebaseUser
@@ -33,6 +34,7 @@ interface AuthContextType {
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  resendVerification: () => Promise<void>;
   updateProfile: (updates: Partial<AuthUser>) => Promise<void>;
 }
 
@@ -48,7 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
       if (firebaseUser) {
-        // User is signed in - get basic info from Firebase
+        // User is signed in - set basic info from Firebase IMMEDIATELY
         const authUser: AuthUser = {
           uid: firebaseUser.uid,
           email: firebaseUser.email || "",
@@ -56,35 +58,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           photoURL: firebaseUser.photoURL,
         };
         
-        // Fetch additional metadata from backend
-        try {
-          const token = await firebaseUser.getIdToken();
-          const response = await fetch(`http://localhost:8000/api/users/${firebaseUser.uid}`, {
-            headers: {
-              "Authorization": `Bearer ${token}`
-            }
-          });
-          
-          if (response.ok) {
-            const userData = await response.json();
-            // Merge backend data with Firebase data
-            const metadata = userData.metadata || {};
-            authUser.age = metadata.age || userData.age;
-            authUser.gender = metadata.gender || userData.gender;
-            authUser.occupation = metadata.occupation || userData.occupation;
-            authUser.avatarUrl = metadata.avatarUrl || userData.avatarUrl;
-          }
-        } catch (error) {
-          console.log("Could not fetch user metadata:", error);
-          // Continue with basic auth data
-        }
-        
+        // Set user immediately for fast navigation
         setUser(authUser);
+        setIsLoading(false);
+        
+        // Fetch additional metadata from backend in the background (non-blocking)
+        (async () => {
+          try {
+            const token = await firebaseUser.getIdToken();
+            const response = await fetch(`http://localhost:8000/api/users/${firebaseUser.uid}`, {
+              headers: {
+                "Authorization": `Bearer ${token}`
+              }
+            });
+            
+            if (response.ok) {
+              const userData = await response.json();
+              // Merge backend data with Firebase data
+              const metadata = userData.metadata || {};
+              authUser.age = metadata.age || userData.age;
+              authUser.gender = metadata.gender || userData.gender;
+              authUser.occupation = metadata.occupation || userData.occupation;
+              authUser.avatarUrl = metadata.avatarUrl || userData.avatarUrl;
+              
+              // Update user state with enriched metadata
+              setUser({ ...authUser });
+            }
+          } catch (error) {
+            console.log("Could not fetch user metadata:", error);
+            // Continue with basic auth data - already set above
+          }
+        })();
       } else {
         // User is signed out
         setUser(null);
+        setIsLoading(false);
       }
-      setIsLoading(false);
     });
 
     // Cleanup subscription
@@ -94,11 +103,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginWithEmail = async (email: string, password: string) => {
     try {
       setIsLoading(true);
-      await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      
+      // Check if email is verified
+      if (!userCredential.user.emailVerified) {
+        await signOut(auth);
+        toast({ 
+          title: "Email not verified", 
+          description: "Please verify your email before logging in. Check your inbox for the verification link.",
+          variant: "destructive" 
+        });
+        throw new Error("Email not verified");
+      }
+      
       setLocation("/dashboard");
       toast({ title: "Welcome back!", description: "Logged in successfully" });
     } catch (error: any) {
-      toast({ title: "Login failed", description: error.message, variant: "destructive" });
+      if (error.message !== "Email not verified") {
+        toast({ title: "Login failed", description: error.message, variant: "destructive" });
+      }
       throw error;
     } finally {
       setIsLoading(false);
@@ -115,12 +138,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await firebaseUpdateProfile(userCredential.user, {
           displayName: name
         });
+        
+        // Send email verification
+        await sendEmailVerification(userCredential.user);
+        
         // Refresh user state
         await userCredential.user.reload();
       }
       
-      setLocation("/dashboard");
-      toast({ title: "Account created!", description: "Welcome to SpeakUp" });
+      // Don't navigate to dashboard immediately - show verification message
+      toast({ 
+        title: "Verification email sent!", 
+        description: `Please check ${email} and verify your account before logging in.` 
+      });
+      
+      // Log out the user so they must verify email first
+      await signOut(auth);
+      
     } catch (error: any) {
       toast({ title: "Signup failed", description: error.message, variant: "destructive" });
       throw error;
@@ -171,6 +205,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const resendVerification = async () => {
+    if (!auth.currentUser) {
+      toast({ title: "Error", description: "No user logged in", variant: "destructive" });
+      return;
+    }
+    
+    try {
+      await sendEmailVerification(auth.currentUser);
+      toast({ 
+        title: "Verification email sent!", 
+        description: "Please check your inbox and verify your email." 
+      });
+    } catch (error: any) {
+      toast({ 
+        title: "Failed to send", 
+        description: error.message, 
+        variant: "destructive" 
+      });
+      throw error;
+    }
+  };
+
   const updateProfile = async (updates: Partial<AuthUser>) => {
     if (!user || !auth.currentUser) return;
     
@@ -211,6 +267,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loginWithGoogle, 
       logout, 
       resetPassword,
+      resendVerification,
       updateProfile
     }}>
       {children}

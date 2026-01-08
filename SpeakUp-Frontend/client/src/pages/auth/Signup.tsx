@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,12 +13,15 @@ export default function Signup() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const { signupWithEmail, loginWithGoogle, isLoading } = useAuth();
+  const [, setLocation] = useLocation();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !name) return;
     if (!email || !name || !password) return;
     await signupWithEmail(email, password, name);
+    // Navigate to login page after verification email is sent
+    setLocation("/auth");
   };
 
   return (
