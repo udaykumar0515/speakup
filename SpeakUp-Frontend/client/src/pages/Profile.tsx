@@ -14,12 +14,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 
 const AVATARS = [
-  { id: 'm1', url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix' },
-  { id: 'm2', url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Buster' },
-  { id: 'm3', url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Jasper' },
-  { id: 'f1', url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Molly' },
-  { id: 'f2', url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Luna' },
-  { id: 'f3', url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Nala' },
+  // Male Avatars
+  { id: 'm1', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Felix' },
+  { id: 'm2', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Chase' },
+  { id: 'm3', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Jack' },
+  { id: 'm4', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Derek' },
+  // Female Avatars
+  { id: 'f1', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Molly' },
+  { id: 'f2', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Lisa' },
+  { id: 'f3', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Annie' },
+  { id: 'f4', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Chloe' },
 ];
 
 function ResumeDetailModal({ result }: { result: any }) {
@@ -320,7 +324,7 @@ export default function Profile() {
                     <DialogHeader>
                       <DialogTitle>Choose Avatar</DialogTitle>
                     </DialogHeader>
-                    <div className="grid grid-cols-3 gap-4 p-4">
+                    <div className="grid grid-cols-4 gap-4 p-4">
                       {AVATARS.map((avatar) => (
                         <div
                           key={avatar.id}
