@@ -3,7 +3,7 @@ import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
-import { useCreateResumeResult, useUploadResume } from "@/hooks/use-api";
+import { useUploadResume } from "@/hooks/use-api";
 import { useDropzone } from "react-dropzone";
 import { UploadCloud, FileText, CheckCircle, AlertTriangle, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
@@ -18,7 +18,6 @@ export default function ResumeAnalyzer() {
   const [result, setResult] = useState<ResumeUploadResponse | null>(null);
   
   const uploadResume = useUploadResume();
-  const createResult = useCreateResumeResult();
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     setFile(acceptedFiles[0]);
@@ -39,17 +38,11 @@ export default function ResumeAnalyzer() {
     formData.append("file", file);
 
     try {
-      // 1. Upload and Analyze
+      // Upload and Analyze (backend automatically saves the result)
       const analysisData = await uploadResume.mutateAsync(formData);
       setResult(analysisData);
-
-      // 2. Save Result to History
-      await createResult.mutateAsync({
-        userId: user?.uid || "",
-        atsScore: analysisData.atsScore,
-        suggestions: analysisData.suggestions,
-        fileName: file.name
-      });
+      
+      // ✅ No need for manual save - backend handles it automatically in /api/resume/upload
       
     } catch (error: any) {
       toast({ title: "Analysis Failed", description: error.message, variant: "destructive" });

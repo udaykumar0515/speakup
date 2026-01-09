@@ -262,20 +262,8 @@ def teach_me(req: TeachMeReq):
         raise HTTPException(status_code=500, detail="Failed to generate explanation")
     return result
 
-@interview_router.post("")
-def save_interview(req: SaveInterviewReq):
-    # Use model_dump() if Pydantic v2, or dict()
-    res = InterviewResult(**req.model_dump())
-    return interview_service.save_result(res)
-
-@interview_router.post("/start")
-def start_interview(req: StartInterviewReq):
-    res = interview_service.start_new_session(
-        req.userId, req.interviewType, req.difficulty, req.mode, req.jobRole, req.resumeData 
-    )
-    if not res:
-        raise HTTPException(status_code=500, detail="Failed to start session")
-    return res
+# Removed redundant @interview_router.post("") endpoint - 
+# /api/interview/end already handles saving with proper mode checks
 
 @interview_router.get("/history/{userId}")
 async def get_interview_history(userId: str, current_user: dict = Depends(get_current_user)):
@@ -436,10 +424,8 @@ async def upload_resume(userId: str = Form(...), file: UploadFile = File(...)):
         
     return result
 
-@resume_router.post("")
-def save_resume(req: SaveResumeReq):
-    res = ResumeResult(**req.model_dump())
-    return resume_service.save_result(res)
+# Removed redundant @resume_router.post("") endpoint - 
+# /api/resume/upload already handles saving after analysis
 
 @resume_router.get("/history/{userId}")
 async def get_resume_history(userId: str, current_user: dict = Depends(get_current_user)):
